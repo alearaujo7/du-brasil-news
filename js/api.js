@@ -23,47 +23,22 @@ const API = (() => {
     return data;
   }
 
-  async function getJSON(url) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
-
-  // ---------- Ações da B3 (brapi.dev) ----------
-  async function fetchStocks(tickers) {
-    if (!tickers.length) return { ok: true, data: [] };
-    const key = `stocks:${tickers.join(",")}`;
+  // Timeout de segurança: se a API travar ou demorar demais, a chamada
+  // falha depois de alguns segundos em vez de deixar a tela carregando
+  // para sempre.
+  async function getJSON(url, timeoutMs = 12000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const result = await cachedFetch(key, CONFIG.CACHE_TTL_MS, async () => {
-        const token = CONFIG.BRAPI_TOKEN ? `&token=${encodeURIComponent(CONFIG.BRAPI_TOKEN)}` : "";
-        const url = `https://brapi.dev/api/v2/stocks/quote?symbols=${tickers.join(",")}${token}`;
-        return getJSON(url);
-      });
-      return { ok: true, data: result.results || [] };
-    } catch (err) {
-      console.error("Erro ao buscar ações:", err);
-      return { ok: false, error: err };
+      const res = await fetch(url, { signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  async function fetchIbovespa() {
-    if (!CONFIG.BRAPI_TOKEN) {
-      return { ok: false, error: "sem-token" };
-    }
-    try {
-      const result = await cachedFetch("ibovespa", CONFIG.CACHE_TTL_MS, async () => {
-        const url = `https://brapi.dev/api/v2/stocks/quote?symbols=${CONFIG.IBOVESPA_SYMBOL}&token=${encodeURIComponent(CONFIG.BRAPI_TOKEN)}`;
-        return getJSON(url);
-      });
-      const item = (result.results || [])[0];
-      return item ? { ok: true, data: item } : { ok: false };
-    } catch (err) {
-      console.error("Erro ao buscar Ibovespa:", err);
-      return { ok: false, error: err };
-    }
-  }
-
-  // ---------- Câmbio (AwesomeAPI — gratuito, sem cadastro) ----------
+  // ---------- Câmbio (AwesomeAPI) ----------
   async function fetchExchangeRates() {
     try {
       const result = await cachedFetch("fx", CONFIG.CACHE_TTL_MS, async () => {
@@ -161,8 +136,8 @@ const API = (() => {
   }
 
   // Histórico de ações só é confiável para os 4 tickers de teste liberados
-  // pela brapi.dev sem token (ver CONFIG.FREE_STOCKS). Se a resposta não vier
-  // no formato esperado, retorna indisponível em vez de arriscar mostrar
+  // pela brapi.dev sem token (PETR4, VALE3, ITUB4, MGLU3). Se a resposta não
+  // vier no formato esperado, retorna indisponível em vez de arriscar mostrar
   // um dado incorreto.
   async function fetchStockHistory(ticker, range) {
     const key = `stock-hist:${ticker}:${range}`;
@@ -184,8 +159,6 @@ const API = (() => {
   }
 
   return {
-    fetchStocks,
-    fetchIbovespa,
     fetchExchangeRates,
     fetchCryptoMarkets,
     fetchFearGreed,

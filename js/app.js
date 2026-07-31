@@ -3,11 +3,11 @@
 // ============================================================
 
 const state = {
-  stocks: [],       // [{ticker, name, price, changePercent, ...raw}]
-  ibovespa: null,   // {price, changePercent} ou null
-  fx: null,         // {usd:{...}, eur:{...}}
+  stocks: [],       // mantido vazio: só existe para favoritos antigos não quebrarem
+  fx: null,         // {USDBRL:{...}, EURBRL:{...}}
+  fxCards: [],      // [{pair, name, symbol, price, changePercent, sparkline}]
   cryptos: [],      // [{id, symbol, name, image, rank, priceUsd, priceBrl, change24h, marketCap, sparkline}]
-  favorites: [],    // [{type:'stock'|'crypto', key:'PETR4'}]
+  favorites: [],    // [{type:'crypto', key:'bitcoin'}]
   fearGreed: null,  // {value, value_classification} ou null
   selic: null,      // número (%) ou null
   ipca: null,       // número (%) ou null
@@ -113,51 +113,31 @@ function renderMarketStatus() {
 
 // ---------- Busca dos dados ----------
 async function loadAllData() {
-  const freeTickers = CONFIG.FREE_STOCKS.map((s) => s.ticker);
-  const extraTickers = CONFIG.BRAPI_TOKEN ? CONFIG.EXTRA_STOCKS.map((s) => s.ticker) : [];
-  const allTickers = [...freeTickers, ...extraTickers];
-  const nameByTicker = Object.fromEntries(
-    [...CONFIG.FREE_STOCKS, ...CONFIG.EXTRA_STOCKS].map((s) => [s.ticker, s.name])
-  );
-
-  const [stocksRes, ibovRes, fxRes, cryptoRes, fngRes, selicRes, ipcaRes] = await Promise.all([
-    API.fetchStocks(allTickers),
-    API.fetchIbovespa(),
+  const [fxRes, cryptoRes, fngRes, selicRes, ipcaRes, ...fxHistories] = await Promise.all([
     API.fetchExchangeRates(),
     API.fetchCryptoMarkets(),
     API.fetchFearGreed(),
     API.fetchSelic(),
     API.fetchIpca12m(),
+    ...CONFIG.FX_CARDS.map((f) => API.fetchFxHistory(f.pair, 7)),
   ]);
-
-  state.stocks = stocksRes.ok
-    ? stocksRes.data.map((r) => {
-        const d = r.data || {};
-        return {
-          ticker: r.symbol,
-          name: nameByTicker[r.symbol] || d.shortName || r.symbol,
-          price: d.regularMarketPrice ?? null,
-          changePercent: d.regularMarketChangePercent ?? null,
-          dayHigh: d.regularMarketDayHigh ?? null,
-          dayLow: d.regularMarketDayLow ?? null,
-          open: d.regularMarketOpen ?? null,
-          previousClose: d.regularMarketPreviousClose ?? null,
-        };
-      })
-    : [];
-  state.stocksError = !stocksRes.ok;
-
-  state.ibovespa =
-    ibovRes.ok && ibovRes.data && ibovRes.data.data
-      ? {
-          price: ibovRes.data.data.regularMarketPrice ?? null,
-          changePercent: ibovRes.data.data.regularMarketChangePercent ?? null,
-        }
-      : null;
-  state.ibovespaUnavailableReason = ibovRes.ok ? null : ibovRes.error;
 
   state.fx = fxRes.ok ? fxRes.data : null;
   state.fxError = !fxRes.ok;
+
+  const fxKey = { "USD-BRL": "USDBRL", "EUR-BRL": "EURBRL" };
+  state.fxCards = CONFIG.FX_CARDS.map((f, i) => {
+    const quote = state.fx && state.fx[fxKey[f.pair]];
+    const histRes = fxHistories[i];
+    return {
+      pair: f.pair,
+      name: f.name,
+      symbol: f.symbol,
+      price: quote ? parseFloat(quote.bid) : null,
+      changePercent: quote ? parseFloat(quote.pctChange) : null,
+      sparkline: histRes && histRes.ok ? histRes.data.map((p) => p.value) : [],
+    };
+  });
 
   const usdBrlRate = state.fx && state.fx.USDBRL ? parseFloat(state.fx.USDBRL.bid) : null;
 
@@ -189,13 +169,6 @@ async function loadAllData() {
 function renderSummaryCards() {
   const el = document.getElementById("summary-cards");
   const cards = [];
-
-  // Ibovespa
-  if (state.ibovespa) {
-    cards.push(cardHTML("Ibovespa", fmtNumber(state.ibovespa.price), fmtPercent(state.ibovespa.changePercent), state.ibovespa.changePercent));
-  } else {
-    cards.push(unavailableCardHTML("Ibovespa", "Requer token gratuito da brapi.dev"));
-  }
 
   // Dólar
   const usd = state.fx && state.fx.USDBRL;
@@ -276,11 +249,6 @@ function unavailableCardHTML(label, reason) {
 function renderTodaySummary() {
   const parts = [];
 
-  if (state.ibovespa) {
-    const dir = state.ibovespa.changePercent > 0 ? "opera em alta" : state.ibovespa.changePercent < 0 ? "opera em queda" : "está estável";
-    parts.push(`O Ibovespa ${dir} (${fmtPercent(state.ibovespa.changePercent)}) nesta sessão.`);
-  }
-
   const usd = state.fx && state.fx.USDBRL;
   if (usd) {
     const pct = parseFloat(usd.pctChange);
@@ -294,10 +262,17 @@ function renderTodaySummary() {
     parts.push(`Bitcoin apresenta ${dir} nas últimas 24 horas (${fmtPercent(btc.change24h)}).`);
   }
 
-  const gainers = [...state.stocks].filter((s) => s.changePercent !== null).sort((a, b) => b.changePercent - a.changePercent);
+  if (state.fearGreed) {
+    const value = parseInt(state.fearGreed.value, 10);
+    if (!Number.isNaN(value)) {
+      parts.push(`O sentimento do mercado cripto está em "${FNG_LABELS[state.fearGreed.value_classification] || state.fearGreed.value_classification}" (${value}/100).`);
+    }
+  }
+
+  const gainers = [...state.cryptos].filter((c) => c.change24h !== null).sort((a, b) => b.change24h - a.change24h);
   if (gainers.length) {
     const top = gainers[0];
-    parts.push(`Entre as ações monitoradas, ${top.ticker} lidera as altas do dia.`);
+    parts.push(`Entre as criptomoedas monitoradas, ${top.name} lidera as altas do dia.`);
   }
 
   const el = document.getElementById("today-summary");
@@ -306,58 +281,62 @@ function renderTodaySummary() {
     : "Ainda não há dados suficientes para gerar o resumo do mercado. Tente novamente em instantes.";
 }
 
-// ---------- Render: tabela de ações ----------
-function renderStocksTable() {
-  const tbody = document.getElementById("stocks-body");
+// ---------- Render: Câmbio ----------
+function renderFxGrid() {
+  const el = document.getElementById("fx-grid");
+  if (!el) return;
 
-  if (state.stocksError) {
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Dados temporariamente indisponíveis.</td></tr>`;
+  if (state.fxError) {
+    el.innerHTML = `<div class="loading-row">Dados temporariamente indisponíveis.</div>`;
     return;
   }
-  if (!state.stocks.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-row">Carregando cotações…</td></tr>`;
+  if (!state.fxCards.length) {
+    el.innerHTML = `<div class="loading-row">Carregando câmbio…</div>`;
     return;
   }
 
-  tbody.innerHTML = state.stocks
-    .map((s) => {
-      const fav = isFavorite("stock", s.ticker);
-      return `
-        <tr class="clickable-row" data-ticker="${s.ticker}">
-          <td><button class="star-btn ${fav ? "active" : ""}" data-fav-type="stock" data-fav-key="${s.ticker}" data-fav-label="${s.ticker}" title="Favoritar">${fav ? "★" : "☆"}</button></td>
-          <td class="ticker-cell">${s.ticker}</td>
-          <td>${s.name}</td>
-          <td>${s.price !== null ? fmtBRL.format(s.price) : "—"}</td>
-          <td class="${changeClass(s.changePercent)}">${arrow(s.changePercent)} ${fmtPercent(s.changePercent)}</td>
-        </tr>`;
-    })
+  el.innerHTML = state.fxCards
+    .map((f) => `
+      <div class="crypto-card">
+        <div class="cc-head">
+          <div class="cc-title">
+            <div>
+              <div class="cc-name">${f.name}</div>
+              <div class="cc-symbol">${f.symbol}</div>
+            </div>
+          </div>
+        </div>
+        <div class="cc-price">${f.price !== null ? fmtBRL.format(f.price) : "—"}</div>
+        <div class="cc-sparkline">${sparklineSVG(f.sparkline)}</div>
+        <div class="cc-change ${changeClass(f.changePercent)}">${arrow(f.changePercent)} ${fmtPercent(f.changePercent)} (dia)</div>
+      </div>`)
     .join("");
 }
 
-// ---------- Render: rankings ----------
+// ---------- Render: rankings (cripto) ----------
 function renderRankings() {
-  const withChange = state.stocks.filter((s) => s.changePercent !== null);
-  const sorted = [...withChange].sort((a, b) => b.changePercent - a.changePercent);
-  const gainers = sorted.filter((s) => s.changePercent > 0).slice(0, 5);
-  const losers = [...sorted].reverse().filter((s) => s.changePercent < 0).slice(0, 5);
+  const withChange = state.cryptos.filter((c) => c.change24h !== null);
+  const sorted = [...withChange].sort((a, b) => b.change24h - a.change24h);
+  const gainers = sorted.filter((c) => c.change24h > 0).slice(0, 5);
+  const losers = [...sorted].reverse().filter((c) => c.change24h < 0).slice(0, 5);
 
   const gainersEl = document.getElementById("top-gainers");
   const losersEl = document.getElementById("top-losers");
 
   gainersEl.innerHTML = gainers.length
-    ? gainers.map((s) => rankingItemHTML(s)).join("")
+    ? gainers.map((c) => rankingItemHTML(c)).join("")
     : `<li class="loading-row">Nenhuma alta no momento.</li>`;
 
   losersEl.innerHTML = losers.length
-    ? losers.map((s) => rankingItemHTML(s)).join("")
+    ? losers.map((c) => rankingItemHTML(c)).join("")
     : `<li class="loading-row">Nenhuma queda no momento.</li>`;
 }
 
-function rankingItemHTML(s) {
+function rankingItemHTML(c) {
   return `
     <li>
-      <span><span class="r-ticker">${s.ticker}</span><span class="r-price">${s.price !== null ? fmtBRL.format(s.price) : "—"}</span></span>
-      <span class="${changeClass(s.changePercent)}">${arrow(s.changePercent)} ${fmtPercent(s.changePercent)}</span>
+      <span><span class="r-ticker">${c.symbol}</span><span class="r-price">${c.priceUsd !== null ? fmtUSD.format(c.priceUsd) : "—"}</span></span>
+      <span class="${changeClass(c.change24h)}">${arrow(c.change24h)} ${fmtPercent(c.change24h)}</span>
     </li>`;
 }
 
@@ -503,9 +482,7 @@ function renderFavorites() {
 
 // ---------- Busca ----------
 function buildSearchIndex() {
-  const stockItems = state.stocks.map((s) => ({ type: "stock", key: s.ticker, label: s.ticker, sub: s.name }));
-  const cryptoItems = state.cryptos.map((c) => ({ type: "crypto", key: c.id, label: c.symbol, sub: c.name }));
-  return [...stockItems, ...cryptoItems];
+  return state.cryptos.map((c) => ({ type: "crypto", key: c.id, label: c.symbol, sub: c.name }));
 }
 
 function setupSearch() {
@@ -534,7 +511,7 @@ function setupSearch() {
         (m) =>
           `<div class="suggestion-item" data-type="${m.type}" data-key="${m.key}">
             <span>${m.label} — ${m.sub}</span>
-            <span class="s-type">${m.type === "stock" ? "Ação B3" : "Cripto"}</span>
+            <span class="s-type">Cripto</span>
           </div>`
       )
       .join("");
@@ -559,33 +536,17 @@ function openDetail(type, key) {
   const overlay = document.getElementById("modal-overlay");
   const content = document.getElementById("modal-content");
 
-  if (type === "stock") {
-    const s = state.stocks.find((x) => x.ticker === key);
-    if (!s) return;
-    content.innerHTML = `
-      <h3>${s.ticker}</h3>
-      <p class="modal-sub">${s.name}</p>
-      <div class="modal-grid">
-        <div class="m-item"><div class="m-label">Preço atual</div><div class="m-value">${s.price !== null ? fmtBRL.format(s.price) : "—"}</div></div>
-        <div class="m-item"><div class="m-label">Variação</div><div class="m-value ${changeClass(s.changePercent)}">${fmtPercent(s.changePercent)}</div></div>
-        <div class="m-item"><div class="m-label">Máxima do dia</div><div class="m-value">${s.dayHigh !== null ? fmtBRL.format(s.dayHigh) : "—"}</div></div>
-        <div class="m-item"><div class="m-label">Mínima do dia</div><div class="m-value">${s.dayLow !== null ? fmtBRL.format(s.dayLow) : "—"}</div></div>
-        <div class="m-item"><div class="m-label">Abertura</div><div class="m-value">${s.open !== null ? fmtBRL.format(s.open) : "—"}</div></div>
-        <div class="m-item"><div class="m-label">Fechamento anterior</div><div class="m-value">${s.previousClose !== null ? fmtBRL.format(s.previousClose) : "—"}</div></div>
-      </div>`;
-  } else {
-    const c = state.cryptos.find((x) => x.id === key);
-    if (!c) return;
-    content.innerHTML = `
-      <h3>${c.name}</h3>
-      <p class="modal-sub">${c.symbol}</p>
-      <div class="modal-grid">
-        <div class="m-item"><div class="m-label">Preço (USD)</div><div class="m-value">${c.priceUsd !== null ? fmtUSD.format(c.priceUsd) : "—"}</div></div>
-        <div class="m-item"><div class="m-label">Preço (BRL)</div><div class="m-value">${c.priceBrl !== null ? fmtBRL.format(c.priceBrl) : "—"}</div></div>
-        <div class="m-item"><div class="m-label">Variação 24h</div><div class="m-value ${changeClass(c.change24h)}">${fmtPercent(c.change24h)}</div></div>
-        <div class="m-item"><div class="m-label">Market cap</div><div class="m-value">${c.marketCap ? fmtUSD.format(c.marketCap) : "—"}</div></div>
-      </div>`;
-  }
+  const c = state.cryptos.find((x) => x.id === key);
+  if (!c) return;
+  content.innerHTML = `
+    <h3>${c.name}</h3>
+    <p class="modal-sub">${c.symbol}</p>
+    <div class="modal-grid">
+      <div class="m-item"><div class="m-label">Preço (USD)</div><div class="m-value">${c.priceUsd !== null ? fmtUSD.format(c.priceUsd) : "—"}</div></div>
+      <div class="m-item"><div class="m-label">Preço (BRL)</div><div class="m-value">${c.priceBrl !== null ? fmtBRL.format(c.priceBrl) : "—"}</div></div>
+      <div class="m-item"><div class="m-label">Variação 24h</div><div class="m-value ${changeClass(c.change24h)}">${fmtPercent(c.change24h)}</div></div>
+      <div class="m-item"><div class="m-label">Market cap</div><div class="m-value">${c.marketCap ? fmtUSD.format(c.marketCap) : "—"}</div></div>
+    </div>`;
 
   overlay.classList.remove("hidden");
 }
@@ -602,25 +563,12 @@ function setupEventListeners() {
     if (e.target.id === "modal-overlay") closeDetail();
   });
 
-  document.getElementById("token-hint-link").addEventListener("click", (e) => {
-    e.preventDefault();
-    document.getElementById("modal-content").innerHTML = `
-      <h3>Ver mais ações da B3</h3>
-      <p class="modal-sub">A brapi.dev libera 4 ações sem cadastro e sem custo (PETR4, VALE3, ITUB4, MGLU3) — é o que este painel usa hoje. Para ver o Ibovespa e as demais ações da lista, a brapi.dev exige atualmente um plano pago (a partir de R$ 99,99/mês, com garantia de reembolso em 7 dias). Se um dia decidir assinar, é só colar o token gerado no dashboard em <code>js/config.js</code>, no campo <code>BRAPI_TOKEN</code>.</p>`;
-    document.getElementById("modal-overlay").classList.remove("hidden");
-  });
-
-  // delegação de eventos: estrelas de favorito e cliques em linhas/cards
+  // delegação de eventos: estrelas de favorito e cliques em cards de cripto
   document.addEventListener("click", (e) => {
     const starBtn = e.target.closest(".star-btn");
     if (starBtn) {
       e.stopPropagation();
       toggleFavorite(starBtn.dataset.favType, starBtn.dataset.favKey, starBtn.dataset.favLabel);
-      return;
-    }
-    const stockRow = e.target.closest("tr[data-ticker]");
-    if (stockRow) {
-      openDetail("stock", stockRow.dataset.ticker);
       return;
     }
     const cryptoCard = e.target.closest(".crypto-card[data-crypto]");
@@ -692,45 +640,54 @@ async function updateComparator() {
   statusEl.textContent = "Carregando histórico…";
   tableBody.innerHTML = `<tr><td colspan="3" class="loading-row">Carregando…</td></tr>`;
 
-  const assets = selections.map(findComparatorAsset);
-  const results = await Promise.all(assets.map((a) => fetchAssetHistory(a.type, a.key, comparatorState.days)));
+  // O try/finally garante que o spinner sempre some, mesmo se alguma
+  // chamada de API travar, demorar demais ou falhar de um jeito inesperado.
+  try {
+    const assets = selections.map(findComparatorAsset);
+    const results = await Promise.all(assets.map((a) => fetchAssetHistory(a.type, a.key, comparatorState.days)));
 
-  const colors = ["#6d8bff", "#f5b731"];
-  const datasets = [];
-  const rows = [];
+    const colors = ["#6d8bff", "#f5b731"];
+    const datasets = [];
+    const rows = [];
 
-  results.forEach((res, i) => {
-    const asset = assets[i];
-    if (!res.ok || !res.data.length) {
-      rows.push(`<tr><td class="ticker-cell">${asset.label}</td><td colspan="2" class="neutral">Dados indisponíveis</td></tr>`);
-      return;
-    }
-    const points = downsample(res.data);
-    const normalized = normalizeSeries(points);
-    const pctChange = normalized[normalized.length - 1].pct;
-    const resultAmount = amount * (1 + pctChange / 100);
+    results.forEach((res, i) => {
+      const asset = assets[i];
+      if (!res.ok || !res.data.length) {
+        rows.push(`<tr><td class="ticker-cell">${asset.label}</td><td colspan="2" class="neutral">Dados indisponíveis</td></tr>`);
+        return;
+      }
+      const points = downsample(res.data);
+      const normalized = normalizeSeries(points);
+      const pctChange = normalized[normalized.length - 1].pct;
+      const resultAmount = amount * (1 + pctChange / 100);
 
-    datasets.push({
-      label: asset.label,
-      data: normalized.map((p) => ({ x: p.date.getTime(), y: p.pct })),
-      borderColor: colors[i] || "#8b93a3",
-      backgroundColor: colors[i] || "#8b93a3",
-      tension: 0.25,
-      pointRadius: 0,
-      borderWidth: 2,
+      datasets.push({
+        label: asset.label,
+        data: normalized.map((p) => ({ x: p.date.getTime(), y: p.pct })),
+        borderColor: colors[i] || "#8b93a3",
+        backgroundColor: colors[i] || "#8b93a3",
+        tension: 0.25,
+        pointRadius: 0,
+        borderWidth: 2,
+      });
+
+      rows.push(`
+        <tr>
+          <td class="ticker-cell">${asset.label}</td>
+          <td class="${changeClass(pctChange)}">${arrow(pctChange)} ${fmtPercent(pctChange)}</td>
+          <td>${fmtBRL.format(resultAmount)}</td>
+        </tr>`);
     });
 
-    rows.push(`
-      <tr>
-        <td class="ticker-cell">${asset.label}</td>
-        <td class="${changeClass(pctChange)}">${arrow(pctChange)} ${fmtPercent(pctChange)}</td>
-        <td>${fmtBRL.format(resultAmount)}</td>
-      </tr>`);
-  });
-
-  tableBody.innerHTML = rows.length ? rows.join("") : `<tr><td colspan="3" class="loading-row">Dados indisponíveis.</td></tr>`;
-  statusEl.classList.add("hidden");
-  renderComparatorChart(datasets);
+    tableBody.innerHTML = rows.length ? rows.join("") : `<tr><td colspan="3" class="loading-row">Dados indisponíveis.</td></tr>`;
+    renderComparatorChart(datasets);
+  } catch (err) {
+    console.error("Erro no comparador:", err);
+    tableBody.innerHTML = `<tr><td colspan="3" class="loading-row">Dados temporariamente indisponíveis.</td></tr>`;
+    renderComparatorChart([]);
+  } finally {
+    statusEl.classList.add("hidden");
+  }
 }
 
 function renderComparatorChart(datasets) {
@@ -811,7 +768,7 @@ function renderAll() {
   renderMarketStatus();
   renderSummaryCards();
   renderTodaySummary();
-  renderStocksTable();
+  renderFxGrid();
   renderRankings();
   renderCryptoGrid();
   renderFearGreed();

@@ -7,34 +7,10 @@
 // ============================================================
 
 const CONFIG = {
-  // Token da brapi.dev (https://brapi.dev/dashboard).
-  // Sem token, o painel mostra as 4 ações liberadas para teste
-  // (PETR4, VALE3, ITUB4, MGLU3) e o Ibovespa fica indisponível.
-  // Atenção: hoje a brapi.dev só libera o Ibovespa e as demais
-  // ações via plano pago (a partir de R$ 99,99/mês) — não existe
-  // mais um token gratuito para isso. Só preencha aqui se decidir
-  // assinar um dos planos.
+  // Token da brapi.dev (https://brapi.dev/dashboard) — opcional.
+  // Usado apenas pelo histórico de ações do comparador (PETR4, VALE3,
+  // ITUB4, MGLU3 funcionam sem token). Deixe em branco se não tiver.
   BRAPI_TOKEN: "",
-
-  // Ações que a brapi.dev libera SEM token (uso de teste).
-  FREE_STOCKS: [
-    { ticker: "PETR4", name: "Petrobras" },
-    { ticker: "VALE3", name: "Vale" },
-    { ticker: "ITUB4", name: "Itaú Unibanco" },
-    { ticker: "MGLU3", name: "Magazine Luiza" },
-  ],
-
-  // Ações extras — só carregam se BRAPI_TOKEN estiver preenchido.
-  EXTRA_STOCKS: [
-    { ticker: "BBAS3", name: "Banco do Brasil" },
-    { ticker: "WEGE3", name: "WEG" },
-    { ticker: "BBDC4", name: "Bradesco" },
-    { ticker: "ABEV3", name: "Ambev" },
-    { ticker: "PRIO3", name: "PRIO" },
-    { ticker: "RENT3", name: "Localiza" },
-  ],
-
-  IBOVESPA_SYMBOL: "^BVSP",
 
   CRYPTOS: [
     { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
@@ -44,6 +20,11 @@ const CONFIG = {
     { id: "ripple", symbol: "XRP", name: "XRP" },
     { id: "cardano", symbol: "ADA", name: "Cardano" },
     { id: "dogecoin", symbol: "DOGE", name: "Dogecoin" },
+  ],
+
+  FX_CARDS: [
+    { pair: "USD-BRL", name: "Dólar Americano", symbol: "USD/BRL" },
+    { pair: "EUR-BRL", name: "Euro", symbol: "EUR/BRL" },
   ],
 
   REFRESH_INTERVAL_MS: 60000, // atualiza os dados a cada 60s

@@ -1,33 +1,28 @@
 # DU BRASIL NEWS — MVP
 
-Painel diário do mercado financeiro: dólar, Bitcoin, Ethereum, criptomoedas e ações da B3 em uma única página, sem necessidade de conta ou backend.
+Painel diário do mercado financeiro: dólar, euro, Bitcoin, Ethereum e outras criptomoedas, sentimento do mercado e indicadores econômicos do Brasil, numa única página, sem necessidade de conta ou backend.
 
 Site 100% estático (HTML + CSS + JS puro) — sem build, sem servidor, sem dependências. Roda igual tanto localmente quanto no Vercel.
 
-## O que já funciona sem nenhuma configuração
+## Funcionalidades
 
-- Dólar (USD/BRL) e Euro (EUR/BRL) — via AwesomeAPI (grátis, sem cadastro).
-- Bitcoin, Ethereum, Solana, BNB, XRP, Cardano, Dogecoin — via CoinGecko, com logo, ranking por market cap e mini-gráfico de 7 dias em cada card (grátis, sem cadastro).
-- 4 ações da B3 — PETR4, VALE3, ITUB4, MGLU3 — via brapi.dev (liberadas gratuitamente para teste, sem token).
-- Índice de Medo e Ganância do mercado cripto — via alternative.me (grátis, sem cadastro), com gauge visual.
-- Economia Brasil: Selic (meta) e IPCA (12 meses) direto do Banco Central (API SGS, oficial e gratuita), com cálculo simplificado de juro real (Selic − IPCA).
-- Comparador & simulador de ativos: compara o desempenho normalizado (%) de até 2 ativos (cripto, câmbio ou as 4 ações livres) num período de 7/30/90 dias, com gráfico (Chart.js) e simulação de quanto renderia um valor hipotético investido.
-- Busca de ativos, favoritos (salvos no navegador), maiores altas/quedas, dark mode, modal de detalhes e layout responsivo.
+- Dólar (USD/BRL) e Euro (EUR/BRL) — via AwesomeAPI, com card visual e mini-gráfico de tendência.
+- Bitcoin, Ethereum, Solana, BNB, XRP, Cardano, Dogecoin — via CoinGecko, com logo, ranking por market cap e mini-gráfico de 7 dias em cada card.
+- Índice de Medo e Ganância do mercado cripto — via alternative.me, com gauge visual.
+- Economia Brasil: Selic (meta) e IPCA (12 meses) direto do Banco Central (API SGS, dado oficial), com cálculo simplificado de juro real (Selic − IPCA).
+- Maiores altas e quedas do dia entre as criptomoedas monitoradas.
+- Comparador & simulador de ativos: compara o desempenho normalizado (%) de até 2 ativos (cripto, câmbio ou 4 ações-teste da B3) num período de 7/30/90 dias, com gráfico (Chart.js) e simulação de quanto renderia um valor hipotético investido.
+- Busca de ativos, favoritos (salvos no navegador), dark mode, modal de detalhes e layout responsivo.
 
-Todas as chamadas de API rodam direto no navegador de quem acessa o site (sem backend). Isso é ótimo para um MVP, mas significa que, se o site crescer muito, o volume de chamadas cresce junto — os provedores gratuitos (CoinGecko, AwesomeAPI, BCB, alternative.me) têm limites de taxa, e uma visita muito concorrida pode ocasionalmente esbarrar neles. Quando isso acontece, a tela mostra "Dados temporariamente indisponíveis" em vez de travar ou inventar números.
+Todas as chamadas de API rodam direto no navegador de quem acessa o site (sem backend). Isso é ótimo para um MVP, mas significa que, se o site crescer muito, o volume de chamadas cresce junto — os provedores usados (CoinGecko, AwesomeAPI, BCB, alternative.me) têm limites de taxa, e uma visita muito concorrida pode ocasionalmente esbarrar neles. Quando isso acontece, a tela mostra "Dados temporariamente indisponíveis" em vez de travar ou inventar números — nunca é exibido um valor fictício.
 
-## O que precisa de um plano pago da brapi.dev (opcional)
+## Sobre ações da B3
 
-O Ibovespa e as demais ações da lista original (BBAS3, WEGE3, BBDC4, ABEV3, PRIO3, RENT3) exigem um token da brapi.dev. **Atualização importante:** a brapi.dev não oferece mais um plano gratuito para isso — hoje só é possível com um plano pago, a partir de R$ 99,99/mês (cobrança anual), com garantia de reembolso em 7 dias.
+O painel não traz mais uma tabela ao vivo de ações da B3 nem o Ibovespa: a brapi.dev (fonte usada) hoje só libera esses dados via plano pago (a partir de R$ 99,99/mês). Em vez de mostrar uma cobertura parcial e enganosa, o site focou no que consegue entregar por completo: câmbio, cripto e indicadores macro.
 
-Se decidir assinar:
-1. Crie uma conta e escolha um plano em https://brapi.dev/dashboard
-2. Copie seu token na seção "Chaves de API"
-3. Abra `js/config.js` e cole o token em `BRAPI_TOKEN: ""`
+O comparador ainda permite comparar o histórico de 4 ações-teste (PETR4, VALE3, ITUB4, MGLU3), que a brapi.dev libera sem custo. Se um dia quiser assinar um plano pago para desbloquear mais ações e o Ibovespa, basta colar o token em `js/config.js`, no campo `BRAPI_TOKEN` — a função `fetchStockHistory` em `js/api.js` já usa esse token automaticamente quando presente.
 
-Sem o token, o painel funciona normalmente e sem custo nenhum, só que com a lista reduzida de 4 ações e sem o card do Ibovespa (aparece "Dados indisponíveis"). Para um MVP/uso pessoal, essa versão gratuita já cumpre bem o objetivo.
-
-**Atenção:** como o site não tem backend, esse token fica visível no navegador de quem acessar o site. Para uso pessoal/MVP isso é aceitável, mas não coloque um token de uma conta com dados sensíveis. Se o projeto crescer, o próximo passo é mover essas chamadas para uma função serverless (ex: Vercel Functions) para esconder o token — a estrutura em `js/api.js` já foi isolada pensando nisso.
+**Atenção:** como o site não tem backend, um token colado ali ficaria visível no navegador de quem acessa o site. Aceitável para MVP/uso pessoal, mas não use um token de uma conta sensível. Se o projeto crescer, o próximo passo é mover essa chamada para uma função serverless (ex: Vercel Functions).
 
 ## Rodar localmente
 

@@ -15,7 +15,7 @@
 
     <nav class="main-nav" aria-label="Navegação principal">
       <a href="#mercado">Mercado</a>
-      <a href="#acoes">Ações</a>
+      <a href="#cambio">Câmbio</a>
       <a href="#cripto">Cripto</a>
       <a href="#comparador">Comparador</a>
       <a href="#favoritos">Favoritos</a>
@@ -83,44 +83,31 @@
           <div class="sc-price" id="econ-real">—</div>
         </div>
       </div>
-      <p class="hint">Fonte: Banco Central do Brasil (SGS), dados oficiais e gratuitos. Juro real = Selic − IPCA (cálculo simplificado).</p>
+      <p class="hint">Fonte: Banco Central do Brasil (SGS). Juro real = Selic − IPCA (cálculo simplificado).</p>
     </div>
   </section>
 
-  <section class="board" id="acoes">
+  <section class="board" id="cambio">
     <div class="section-head">
-      <h2>Mercado Brasileiro</h2>
-      <p class="hint">Exibindo as ações liberadas gratuitamente pela API, sem necessidade de cadastro. <a href="#" id="token-hint-link">Quer ver mais ações da B3?</a></p>
+      <h2>Câmbio</h2>
+      <p class="hint">Dólar e euro frente ao real, com a tendência dos últimos 7 dias.</p>
     </div>
-    <div class="table-wrap">
-      <table id="stocks-table">
-        <thead>
-          <tr>
-            <th aria-label="Favorito"></th>
-            <th>Ticker</th>
-            <th>Empresa</th>
-            <th>Preço</th>
-            <th>Variação (dia)</th>
-          </tr>
-        </thead>
-        <tbody id="stocks-body">
-          <tr><td colspan="5" class="loading-row">Carregando cotações…</td></tr>
-        </tbody>
-      </table>
+    <div class="crypto-grid" id="fx-grid">
+      <div class="loading-row">Carregando câmbio…</div>
     </div>
   </section>
 
   <section class="rankings">
     <div class="ranking-col">
-      <h3>Maiores altas do dia</h3>
+      <h3>Maiores altas (cripto)</h3>
       <ul id="top-gainers" class="ranking-list"><li class="loading-row">Carregando…</li></ul>
     </div>
     <div class="ranking-col">
-      <h3>Maiores quedas do dia</h3>
+      <h3>Maiores quedas (cripto)</h3>
       <ul id="top-losers" class="ranking-list"><li class="loading-row">Carregando…</li></ul>
     </div>
   </section>
-  <p class="hint ranking-hint">Ranking calculado com base nas ações monitoradas neste painel.</p>
+  <p class="hint ranking-hint">Ranking calculado com base nas 7 criptomoedas monitoradas neste painel, pela variação em 24h.</p>
 
   <section class="board" id="cripto">
     <div class="section-head">
@@ -159,6 +146,8 @@
         </div>
       </div>
     </div>
+
+    <p class="chart-explainer">Como ler o gráfico: cada linha mostra a variação acumulada (%) do ativo desde o início do período escolhido — não é o preço em si. Se a linha do Bitcoin está em "+8%", significa que o Bitcoin valorizou 8% desde o primeiro dia do período. Isso permite comparar ativos com preços muito diferentes (ex: Bitcoin x Dólar) na mesma escala.</p>
 
     <div class="comparator-chart-wrap">
       <canvas id="comparator-chart" height="110"></canvas>

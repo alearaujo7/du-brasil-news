@@ -308,7 +308,8 @@ tbody tr.clickable-row:hover { background: var(--bg-elevated); }
 /* ---------- Crypto grid ---------- */
 .crypto-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 240px));
+  justify-content: start;
   gap: 14px;
 }
 .crypto-card {
@@ -370,6 +371,17 @@ tbody tr.clickable-row:hover { background: var(--bg-elevated); }
 }
 .period-btn.active { color: #fff; background: var(--accent); border-color: var(--accent); }
 
+.chart-explainer {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+
 .comparator-chart-wrap {
   background: var(--card-bg);
   border: 1px solid var(--border);
@@ -385,7 +397,8 @@ tbody tr.clickable-row:hover { background: var(--bg-elevated); }
 /* ---------- Favorites ---------- */
 .favorites-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 240px));
+  justify-content: start;
   gap: 14px;
 }
 .favorite-card {
