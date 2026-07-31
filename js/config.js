@@ -24,11 +24,4 @@ const CONFIG = {
 
   REFRESH_INTERVAL_MS: 60000, // atualiza os dados a cada 60s
   CACHE_TTL_MS: 45000,        // evita repetir a mesma chamada em menos de 45s
-
-  // Séries do SGS (Banco Central do Brasil) — API oficial, gratuita, sem chave.
-  BCB_SERIES: {
-    SELIC: 432,        // Meta Selic definida pelo Copom (% a.a.)
-    IPCA_12M: 13522,   // IPCA acumulado em 12 meses (%)
-    SELIC_DIARIA: 11,  // Taxa Selic efetiva diária (% a.d.) — usada no comparador de investimentos
-  },
 };

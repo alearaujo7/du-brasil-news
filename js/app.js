@@ -9,13 +9,6 @@ const state = {
   cryptos: [],      // [{id, symbol, name, image, rank, priceUsd, priceBrl, change24h, marketCap, sparkline}]
   favorites: [],    // [{type:'crypto', key:'bitcoin'}]
   fearGreed: null,  // {value, value_classification} ou null
-  selic: null,      // número (%) ou null
-  ipca: null,       // número (%) ou null
-};
-
-const comparatorState = {
-  days: 90,
-  amountTimer: null,
 };
 
 const fmtBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -111,12 +104,10 @@ function renderMarketStatus() {
 
 // ---------- Busca dos dados ----------
 async function loadAllData() {
-  const [fxRes, cryptoRes, fngRes, selicRes, ipcaRes, ...fxHistories] = await Promise.all([
+  const [fxRes, cryptoRes, fngRes, ...fxHistories] = await Promise.all([
     API.fetchExchangeRates(),
     API.fetchCryptoMarkets(),
     API.fetchFearGreed(),
-    API.fetchSelic(),
-    API.fetchIpca12m(),
     ...CONFIG.FX_CARDS.map((f) => API.fetchFxHistory(f.pair, 7)),
   ]);
 
@@ -158,9 +149,6 @@ async function loadAllData() {
   state.cryptoError = !cryptoRes.ok;
 
   state.fearGreed = fngRes.ok ? fngRes.data : null;
-
-  state.selic = selicRes.ok ? parseFloat(selicRes.data[selicRes.data.length - 1].valor) : null;
-  state.ipca = ipcaRes.ok ? parseFloat(ipcaRes.data[ipcaRes.data.length - 1].valor) : null;
 }
 
 // ---------- Render: cards de resumo ----------
@@ -171,17 +159,17 @@ function renderSummaryCards() {
   // Dólar
   const usd = state.fx && state.fx.USDBRL;
   if (usd) {
-    cards.push(cardHTML("Dólar (USD/BRL)", fmtBRL.format(parseFloat(usd.bid)), fmtPercent(parseFloat(usd.pctChange)), parseFloat(usd.pctChange)));
+    cards.push(cardHTML("💵", "Dólar (USD/BRL)", fmtBRL.format(parseFloat(usd.bid)), fmtPercent(parseFloat(usd.pctChange)), parseFloat(usd.pctChange)));
   } else {
-    cards.push(unavailableCardHTML("Dólar (USD/BRL)", "Dados temporariamente indisponíveis"));
+    cards.push(unavailableCardHTML("💵", "Dólar (USD/BRL)", "Dados temporariamente indisponíveis"));
   }
 
   // Euro
   const eur = state.fx && state.fx.EURBRL;
   if (eur) {
-    cards.push(cardHTML("Euro (EUR/BRL)", fmtBRL.format(parseFloat(eur.bid)), fmtPercent(parseFloat(eur.pctChange)), parseFloat(eur.pctChange)));
+    cards.push(cardHTML("💶", "Euro (EUR/BRL)", fmtBRL.format(parseFloat(eur.bid)), fmtPercent(parseFloat(eur.pctChange)), parseFloat(eur.pctChange)));
   } else {
-    cards.push(unavailableCardHTML("Euro (EUR/BRL)", "Dados temporariamente indisponíveis"));
+    cards.push(unavailableCardHTML("💶", "Euro (EUR/BRL)", "Dados temporariamente indisponíveis"));
   }
 
   // Bitcoin
@@ -189,6 +177,7 @@ function renderSummaryCards() {
   if (btc && btc.priceUsd) {
     cards.push(
       cardHTML(
+        "₿",
         "Bitcoin",
         fmtUSD.format(btc.priceUsd),
         fmtPercent(btc.change24h),
@@ -197,7 +186,7 @@ function renderSummaryCards() {
       )
     );
   } else {
-    cards.push(unavailableCardHTML("Bitcoin", "Dados temporariamente indisponíveis"));
+    cards.push(unavailableCardHTML("₿", "Bitcoin", "Dados temporariamente indisponíveis"));
   }
 
   // Ethereum
@@ -205,6 +194,7 @@ function renderSummaryCards() {
   if (eth && eth.priceUsd) {
     cards.push(
       cardHTML(
+        "Ξ",
         "Ethereum",
         fmtUSD.format(eth.priceUsd),
         fmtPercent(eth.change24h),
@@ -213,7 +203,7 @@ function renderSummaryCards() {
       )
     );
   } else {
-    cards.push(unavailableCardHTML("Ethereum", "Dados temporariamente indisponíveis"));
+    cards.push(unavailableCardHTML("Ξ", "Ethereum", "Dados temporariamente indisponíveis"));
   }
 
   el.innerHTML = cards.join("");
@@ -224,20 +214,20 @@ function fmtNumber(value) {
   return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function cardHTML(label, price, changeLabel, changeValue, subLine) {
+function cardHTML(icon, label, price, changeLabel, changeValue, subLine) {
   return `
     <div class="summary-card">
-      <div class="sc-label">${label}</div>
+      <div class="sc-label"><span class="sc-icon">${icon}</span>${label}</div>
       <div class="sc-price">${price}</div>
       ${subLine ? `<div class="sc-sub">${subLine}</div>` : ""}
       <div class="sc-change ${changeClass(changeValue)}">${arrow(changeValue)} ${changeLabel}</div>
     </div>`;
 }
 
-function unavailableCardHTML(label, reason) {
+function unavailableCardHTML(icon, label, reason) {
   return `
     <div class="summary-card unavailable">
-      <div class="sc-label">${label}</div>
+      <div class="sc-label"><span class="sc-icon">${icon}</span>${label}</div>
       <div class="sc-price">Dados indisponíveis</div>
       <div class="sc-sub">${reason}</div>
     </div>`;
@@ -399,16 +389,21 @@ const FNG_LABELS = {
   "Extreme Greed": "Ganância extrema",
 };
 
+// Anel de progresso: circunferência = 2 * PI * r (r=68) ≈ 427.26.
+// stroke-dashoffset controla quanto do anel fica visível, criando o efeito
+// de "preenchimento" até o valor do índice.
+const FNG_RING_CIRCUMFERENCE = 427.26;
+
 function renderFearGreed() {
   const valueEl = document.getElementById("fng-value");
   const labelEl = document.getElementById("fng-label");
-  const needle = document.getElementById("fng-needle");
+  const ring = document.getElementById("fng-ring");
   if (!valueEl) return;
 
   if (!state.fearGreed) {
     valueEl.textContent = "—";
     labelEl.textContent = "Dados indisponíveis";
-    needle.setAttribute("transform", "rotate(0 100 110)");
+    ring.style.strokeDashoffset = FNG_RING_CIRCUMFERENCE;
     return;
   }
 
@@ -416,28 +411,8 @@ function renderFearGreed() {
   valueEl.textContent = Number.isNaN(value) ? "—" : value;
   labelEl.textContent = FNG_LABELS[state.fearGreed.value_classification] || state.fearGreed.value_classification;
 
-  const angle = -90 + (Math.max(0, Math.min(100, value)) / 100) * 180;
-  needle.setAttribute("transform", `rotate(${angle} 100 110)`);
-}
-
-// ---------- Render: Economia Brasil ----------
-function renderEconomia() {
-  const selicEl = document.getElementById("econ-selic");
-  const ipcaEl = document.getElementById("econ-ipca");
-  const realEl = document.getElementById("econ-real");
-  if (!selicEl) return;
-
-  selicEl.textContent = state.selic !== null ? `${state.selic.toFixed(2).replace(".", ",")}%` : "Indisponível";
-  ipcaEl.textContent = state.ipca !== null ? `${state.ipca.toFixed(2).replace(".", ",")}%` : "Indisponível";
-
-  if (state.selic !== null && state.ipca !== null) {
-    const real = state.selic - state.ipca;
-    realEl.textContent = `${real > 0 ? "+" : ""}${real.toFixed(2).replace(".", ",")}%`;
-    realEl.className = `sc-price ${changeClass(real)}`;
-  } else {
-    realEl.textContent = "Indisponível";
-    realEl.className = "sc-price";
-  }
+  const clamped = Math.max(0, Math.min(100, value));
+  ring.style.strokeDashoffset = FNG_RING_CIRCUMFERENCE * (1 - clamped / 100);
 }
 
 // ---------- Render: favoritos ----------
@@ -576,120 +551,6 @@ function setupEventListeners() {
   });
 }
 
-// ---------- Comparador de investimentos ----------
-// Calcula, para o mesmo período retrospectivo (ex: últimos 90 dias), quanto
-// cada tipo de investimento realmente rendeu. Renda fixa usa dados oficiais
-// do Banco Central; cripto e dólar usam o histórico real de preços.
-function pctChangeFromHistory(res) {
-  if (!res.ok || res.data.length < 2) return null;
-  const first = res.data[0].value;
-  const last = res.data[res.data.length - 1].value;
-  return first ? ((last - first) / first) * 100 : null;
-}
-
-// Poupança: regra oficial (Lei 8.177/1991, com a alteração de 2012) — quando
-// a Selic-meta está acima de 8,5% a.a., a poupança rende 0,5% ao mês + TR;
-// caso contrário, rende 70% da Selic + TR. Aqui a TR é considerada 0% (tem
-// ficado próxima disso na prática), o que é uma simplificação assumida.
-function estimatePoupancaPct(selicAnual, days) {
-  if (selicAnual === null) return null;
-  const monthlyRate = selicAnual > 8.5 ? 0.005 : (selicAnual / 100 / 12) * 0.7;
-  return (Math.pow(1 + monthlyRate, days / 30) - 1) * 100;
-}
-
-async function computeInvestmentReturns(days) {
-  const [selicDailyRes, btcRes, ethRes, usdRes] = await Promise.all([
-    API.fetchSelicDailyRange(days),
-    API.fetchCryptoHistory("bitcoin", days),
-    API.fetchCryptoHistory("ethereum", days),
-    API.fetchFxHistory("USD-BRL", days),
-  ]);
-
-  const results = [];
-
-  if (selicDailyRes.ok) {
-    const acumulado = selicDailyRes.data.reduce((acc, d) => acc * (1 + parseFloat(d.valor) / 100), 1) - 1;
-    results.push({ key: "cdi", label: "CDI / Tesouro Selic", pct: acumulado * 100 });
-  } else {
-    results.push({ key: "cdi", label: "CDI / Tesouro Selic", pct: null });
-  }
-
-  results.push({ key: "poupanca", label: "Poupança", pct: estimatePoupancaPct(state.selic, days) });
-  results.push({ key: "bitcoin", label: "Bitcoin", pct: pctChangeFromHistory(btcRes) });
-  results.push({ key: "ethereum", label: "Ethereum", pct: pctChangeFromHistory(ethRes) });
-  results.push({ key: "dolar", label: "Dólar (USD/BRL)", pct: pctChangeFromHistory(usdRes) });
-
-  return results;
-}
-
-function investRowHTML(r, amount, maxAbsPct) {
-  if (r.pct === null || Number.isNaN(r.pct)) {
-    return `
-      <div class="invest-row">
-        <div class="invest-label">${r.label}</div>
-        <div class="invest-bar-track"><div class="invest-bar unavailable"></div></div>
-        <div class="invest-value neutral">Dados indisponíveis</div>
-      </div>`;
-  }
-  const widthPct = maxAbsPct > 0 ? Math.min(100, (Math.abs(r.pct) / maxAbsPct) * 100) : 0;
-  const finalAmount = amount * (1 + r.pct / 100);
-  return `
-    <div class="invest-row">
-      <div class="invest-label">${r.label}</div>
-      <div class="invest-bar-track">
-        <div class="invest-bar ${changeClass(r.pct)}" style="width:${widthPct}%"></div>
-      </div>
-      <div class="invest-value ${changeClass(r.pct)}">${arrow(r.pct)} ${fmtPercent(r.pct)} · ${fmtBRL.format(finalAmount)}</div>
-    </div>`;
-}
-
-async function updateComparator() {
-  const statusEl = document.getElementById("comparator-status");
-  const listEl = document.getElementById("comparator-list");
-  if (!statusEl || !listEl) return;
-
-  const amount = parseFloat(document.getElementById("sim-amount").value) || 0;
-
-  statusEl.classList.remove("hidden");
-  statusEl.textContent = "Calculando…";
-
-  // O try/finally garante que o spinner sempre some, mesmo se alguma
-  // chamada de API travar, demorar demais ou falhar de um jeito inesperado.
-  try {
-    const results = await computeInvestmentReturns(comparatorState.days);
-    const sorted = [...results].sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity));
-    const maxAbsPct = Math.max(0, ...results.filter((r) => r.pct !== null).map((r) => Math.abs(r.pct)));
-
-    listEl.innerHTML = sorted.map((r) => investRowHTML(r, amount, maxAbsPct)).join("");
-  } catch (err) {
-    console.error("Erro no comparador:", err);
-    listEl.innerHTML = `<p class="loading-row">Dados temporariamente indisponíveis.</p>`;
-  } finally {
-    statusEl.classList.add("hidden");
-  }
-}
-
-function setupComparator() {
-  const listEl = document.getElementById("comparator-list");
-  if (!listEl) return;
-
-  document.querySelectorAll(".period-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".period-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      comparatorState.days = parseInt(btn.dataset.days, 10);
-      updateComparator();
-    });
-  });
-
-  document.getElementById("sim-amount").addEventListener("input", () => {
-    clearTimeout(comparatorState.amountTimer);
-    comparatorState.amountTimer = setTimeout(updateComparator, 400);
-  });
-
-  updateComparator();
-}
-
 // ---------- Orquestração ----------
 function renderAll() {
   renderMarketStatus();
@@ -699,7 +560,6 @@ function renderAll() {
   renderRankings();
   renderCryptoGrid();
   renderFearGreed();
-  renderEconomia();
   renderFavorites();
 }
 
@@ -714,7 +574,6 @@ async function init() {
   setupEventListeners();
   setupSearch();
   await refresh();
-  setupComparator();
   setInterval(refresh, CONFIG.REFRESH_INTERVAL_MS);
   setInterval(renderMarketStatus, 30000);
 }

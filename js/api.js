@@ -81,43 +81,7 @@ const API = (() => {
     }
   }
 
-  // ---------- Economia Brasil (Banco Central — SGS, API oficial, gratuita, sem chave) ----------
-  async function fetchBcbSeries(code, n) {
-    const key = `bcb:${code}:${n}`;
-    try {
-      const result = await cachedFetch(key, CONFIG.CACHE_TTL_MS, async () => {
-        return getJSON(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados/ultimos/${n}?formato=json`);
-      });
-      return Array.isArray(result) && result.length ? { ok: true, data: result } : { ok: false };
-    } catch (err) {
-      console.error(`Erro ao buscar série ${code} do Banco Central:`, err);
-      return { ok: false, error: err };
-    }
-  }
-
-  async function fetchSelic() {
-    return fetchBcbSeries(CONFIG.BCB_SERIES.SELIC, 1);
-  }
-
-  async function fetchIpca12m() {
-    return fetchBcbSeries(CONFIG.BCB_SERIES.IPCA_12M, 1);
-  }
-
-  // ---------- Históricos para o comparador/simulador ----------
-  async function fetchCryptoHistory(id, days) {
-    const key = `crypto-hist:${id}:${days}`;
-    try {
-      const result = await cachedFetch(key, CONFIG.CACHE_TTL_MS, async () => {
-        return getJSON(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`);
-      });
-      const points = (result.prices || []).map(([t, v]) => ({ date: new Date(t), value: v }));
-      return points.length ? { ok: true, data: points } : { ok: false };
-    } catch (err) {
-      console.error("Erro ao buscar histórico de criptomoeda:", err);
-      return { ok: false, error: err };
-    }
-  }
-
+  // ---------- Histórico de câmbio (para sparklines) ----------
   async function fetchFxHistory(pair, days) {
     const key = `fx-hist:${pair}:${days}`;
     try {
@@ -134,43 +98,10 @@ const API = (() => {
     }
   }
 
-  // Selic diária (série 11), por intervalo de datas — usada para calcular o
-  // retorno REAL e composto do CDI/Tesouro Selic num período (não é uma
-  // estimativa: soma dia a dia a taxa efetivamente divulgada pelo BCB).
-  function formatDateBR(date) {
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    return `${dd}/${mm}/${date.getFullYear()}`;
-  }
-
-  async function fetchSelicDailyRange(days) {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-    const startStr = formatDateBR(start);
-    const endStr = formatDateBR(end);
-    const key = `selic-daily:${startStr}:${endStr}`;
-    try {
-      const result = await cachedFetch(key, CONFIG.CACHE_TTL_MS, async () => {
-        return getJSON(
-          `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${CONFIG.BCB_SERIES.SELIC_DIARIA}/dados?formato=json&dataInicial=${startStr}&dataFinal=${endStr}`
-        );
-      });
-      return Array.isArray(result) && result.length ? { ok: true, data: result } : { ok: false };
-    } catch (err) {
-      console.error("Erro ao buscar Selic diária:", err);
-      return { ok: false, error: err };
-    }
-  }
-
   return {
     fetchExchangeRates,
     fetchCryptoMarkets,
     fetchFearGreed,
-    fetchSelic,
-    fetchIpca12m,
-    fetchCryptoHistory,
     fetchFxHistory,
-    fetchSelicDailyRange,
   };
 })();
