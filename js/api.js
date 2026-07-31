@@ -2,9 +2,8 @@
 // CAMADA DE INTEGRAÇÃO COM APIs
 // ============================================================
 // Todo acesso a dados externos passa por aqui. Se um dia for
-// preciso trocar de provedor (ex: trocar a brapi.dev por outra
-// API de ações), o resto do código não precisa mudar — só as
-// funções deste arquivo.
+// preciso trocar de provedor de dados, o resto do código não
+// precisa mudar — só as funções deste arquivo.
 //
 // Nunca inventa dados: se uma chamada falhar, a função retorna
 // { ok: false } e a tela mostra "Dados temporariamente indisponíveis".
@@ -135,25 +134,31 @@ const API = (() => {
     }
   }
 
-  // Histórico de ações só é confiável para os 4 tickers de teste liberados
-  // pela brapi.dev sem token (PETR4, VALE3, ITUB4, MGLU3). Se a resposta não
-  // vier no formato esperado, retorna indisponível em vez de arriscar mostrar
-  // um dado incorreto.
-  async function fetchStockHistory(ticker, range) {
-    const key = `stock-hist:${ticker}:${range}`;
+  // Selic diária (série 11), por intervalo de datas — usada para calcular o
+  // retorno REAL e composto do CDI/Tesouro Selic num período (não é uma
+  // estimativa: soma dia a dia a taxa efetivamente divulgada pelo BCB).
+  function formatDateBR(date) {
+    const dd = String(date.getDate()).padStart(2, "0");
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${date.getFullYear()}`;
+  }
+
+  async function fetchSelicDailyRange(days) {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    const startStr = formatDateBR(start);
+    const endStr = formatDateBR(end);
+    const key = `selic-daily:${startStr}:${endStr}`;
     try {
       const result = await cachedFetch(key, CONFIG.CACHE_TTL_MS, async () => {
-        const token = CONFIG.BRAPI_TOKEN ? `&token=${encodeURIComponent(CONFIG.BRAPI_TOKEN)}` : "";
-        return getJSON(`https://brapi.dev/api/v2/stocks/historical?symbols=${ticker}&range=${range}&interval=1d${token}`);
+        return getJSON(
+          `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${CONFIG.BCB_SERIES.SELIC_DIARIA}/dados?formato=json&dataInicial=${startStr}&dataFinal=${endStr}`
+        );
       });
-      const item = (result.results || [])[0];
-      const raw = (item && item.historicalDataPrice) || [];
-      const points = raw
-        .filter((p) => p && p.date && (p.close ?? p.adjustedClose))
-        .map((p) => ({ date: new Date(p.date * 1000), value: p.close ?? p.adjustedClose }));
-      return points.length ? { ok: true, data: points } : { ok: false };
+      return Array.isArray(result) && result.length ? { ok: true, data: result } : { ok: false };
     } catch (err) {
-      console.error("Erro ao buscar histórico de ação:", err);
+      console.error("Erro ao buscar Selic diária:", err);
       return { ok: false, error: err };
     }
   }
@@ -166,6 +171,6 @@ const API = (() => {
     fetchIpca12m,
     fetchCryptoHistory,
     fetchFxHistory,
-    fetchStockHistory,
+    fetchSelicDailyRange,
   };
 })();

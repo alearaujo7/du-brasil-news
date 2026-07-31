@@ -14,8 +14,7 @@ const state = {
 };
 
 const comparatorState = {
-  days: 7,
-  chart: null,
+  days: 90,
   amountTimer: null,
 };
 
@@ -84,7 +83,6 @@ function toggleTheme() {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem(THEME_KEY, next);
   document.getElementById("theme-toggle").textContent = next === "dark" ? "🌙" : "☀️";
-  if (comparatorState.chart) updateComparator();
 }
 
 // ---------- Status do mercado (B3) ----------
@@ -578,171 +576,102 @@ function setupEventListeners() {
   });
 }
 
-// ---------- Comparador & simulador de ativos ----------
-function assetValue(type, key) {
-  return `${type}:${key}`;
+// ---------- Comparador de investimentos ----------
+// Calcula, para o mesmo período retrospectivo (ex: últimos 90 dias), quanto
+// cada tipo de investimento realmente rendeu. Renda fixa usa dados oficiais
+// do Banco Central; cripto e dólar usam o histórico real de preços.
+function pctChangeFromHistory(res) {
+  if (!res.ok || res.data.length < 2) return null;
+  const first = res.data[0].value;
+  const last = res.data[res.data.length - 1].value;
+  return first ? ((last - first) / first) * 100 : null;
 }
 
-function findComparatorAsset(value) {
-  const [type, key] = value.split(":");
-  return CONFIG.COMPARATOR_ASSETS.find((a) => a.type === type && a.key === key) || { type, key, label: value };
+// Poupança: regra oficial (Lei 8.177/1991, com a alteração de 2012) — quando
+// a Selic-meta está acima de 8,5% a.a., a poupança rende 0,5% ao mês + TR;
+// caso contrário, rende 70% da Selic + TR. Aqui a TR é considerada 0% (tem
+// ficado próxima disso na prática), o que é uma simplificação assumida.
+function estimatePoupancaPct(selicAnual, days) {
+  if (selicAnual === null) return null;
+  const monthlyRate = selicAnual > 8.5 ? 0.005 : (selicAnual / 100 / 12) * 0.7;
+  return (Math.pow(1 + monthlyRate, days / 30) - 1) * 100;
 }
 
-function populateComparatorSelects() {
-  const selectA = document.getElementById("asset-a");
-  const selectB = document.getElementById("asset-b");
-  if (!selectA || !selectB) return;
+async function computeInvestmentReturns(days) {
+  const [selicDailyRes, btcRes, ethRes, usdRes] = await Promise.all([
+    API.fetchSelicDailyRange(days),
+    API.fetchCryptoHistory("bitcoin", days),
+    API.fetchCryptoHistory("ethereum", days),
+    API.fetchFxHistory("USD-BRL", days),
+  ]);
 
-  const options = CONFIG.COMPARATOR_ASSETS.map(
-    (a) => `<option value="${assetValue(a.type, a.key)}">${a.label}</option>`
-  ).join("");
+  const results = [];
 
-  selectA.innerHTML = options;
-  selectB.innerHTML = `<option value="">Nenhum</option>${options}`;
-  selectA.value = assetValue("crypto", "bitcoin");
-  selectB.value = assetValue("fx", "USD-BRL");
-}
-
-function downsample(points, maxPoints = 300) {
-  if (points.length <= maxPoints) return points;
-  const step = Math.ceil(points.length / maxPoints);
-  return points.filter((_, i) => i % step === 0);
-}
-
-async function fetchAssetHistory(type, key, days) {
-  if (type === "crypto") return API.fetchCryptoHistory(key, days);
-  if (type === "fx") return API.fetchFxHistory(key, days);
-  if (type === "stock") {
-    const rangeMap = { 7: "5d", 30: "1mo", 90: "3mo" };
-    return API.fetchStockHistory(key, rangeMap[days] || "1mo");
+  if (selicDailyRes.ok) {
+    const acumulado = selicDailyRes.data.reduce((acc, d) => acc * (1 + parseFloat(d.valor) / 100), 1) - 1;
+    results.push({ key: "cdi", label: "CDI / Tesouro Selic", pct: acumulado * 100 });
+  } else {
+    results.push({ key: "cdi", label: "CDI / Tesouro Selic", pct: null });
   }
-  return { ok: false };
+
+  results.push({ key: "poupanca", label: "Poupança", pct: estimatePoupancaPct(state.selic, days) });
+  results.push({ key: "bitcoin", label: "Bitcoin", pct: pctChangeFromHistory(btcRes) });
+  results.push({ key: "ethereum", label: "Ethereum", pct: pctChangeFromHistory(ethRes) });
+  results.push({ key: "dolar", label: "Dólar (USD/BRL)", pct: pctChangeFromHistory(usdRes) });
+
+  return results;
 }
 
-function normalizeSeries(points) {
-  if (!points.length) return [];
-  const base = points[0].value;
-  return points.map((p) => ({ date: p.date, pct: base ? ((p.value - base) / base) * 100 : 0 }));
+function investRowHTML(r, amount, maxAbsPct) {
+  if (r.pct === null || Number.isNaN(r.pct)) {
+    return `
+      <div class="invest-row">
+        <div class="invest-label">${r.label}</div>
+        <div class="invest-bar-track"><div class="invest-bar unavailable"></div></div>
+        <div class="invest-value neutral">Dados indisponíveis</div>
+      </div>`;
+  }
+  const widthPct = maxAbsPct > 0 ? Math.min(100, (Math.abs(r.pct) / maxAbsPct) * 100) : 0;
+  const finalAmount = amount * (1 + r.pct / 100);
+  return `
+    <div class="invest-row">
+      <div class="invest-label">${r.label}</div>
+      <div class="invest-bar-track">
+        <div class="invest-bar ${changeClass(r.pct)}" style="width:${widthPct}%"></div>
+      </div>
+      <div class="invest-value ${changeClass(r.pct)}">${arrow(r.pct)} ${fmtPercent(r.pct)} · ${fmtBRL.format(finalAmount)}</div>
+    </div>`;
 }
 
 async function updateComparator() {
-  const selectA = document.getElementById("asset-a");
-  const selectB = document.getElementById("asset-b");
   const statusEl = document.getElementById("comparator-status");
-  const tableBody = document.getElementById("comparator-body");
-  if (!selectA) return;
+  const listEl = document.getElementById("comparator-list");
+  if (!statusEl || !listEl) return;
 
   const amount = parseFloat(document.getElementById("sim-amount").value) || 0;
-  const selections = [selectA.value, selectB.value].filter(Boolean);
-  if (!selections.length) return;
 
   statusEl.classList.remove("hidden");
-  statusEl.textContent = "Carregando histórico…";
-  tableBody.innerHTML = `<tr><td colspan="3" class="loading-row">Carregando…</td></tr>`;
+  statusEl.textContent = "Calculando…";
 
   // O try/finally garante que o spinner sempre some, mesmo se alguma
   // chamada de API travar, demorar demais ou falhar de um jeito inesperado.
   try {
-    const assets = selections.map(findComparatorAsset);
-    const results = await Promise.all(assets.map((a) => fetchAssetHistory(a.type, a.key, comparatorState.days)));
+    const results = await computeInvestmentReturns(comparatorState.days);
+    const sorted = [...results].sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity));
+    const maxAbsPct = Math.max(0, ...results.filter((r) => r.pct !== null).map((r) => Math.abs(r.pct)));
 
-    const colors = ["#6d8bff", "#f5b731"];
-    const datasets = [];
-    const rows = [];
-
-    results.forEach((res, i) => {
-      const asset = assets[i];
-      if (!res.ok || !res.data.length) {
-        rows.push(`<tr><td class="ticker-cell">${asset.label}</td><td colspan="2" class="neutral">Dados indisponíveis</td></tr>`);
-        return;
-      }
-      const points = downsample(res.data);
-      const normalized = normalizeSeries(points);
-      const pctChange = normalized[normalized.length - 1].pct;
-      const resultAmount = amount * (1 + pctChange / 100);
-
-      datasets.push({
-        label: asset.label,
-        data: normalized.map((p) => ({ x: p.date.getTime(), y: p.pct })),
-        borderColor: colors[i] || "#8b93a3",
-        backgroundColor: colors[i] || "#8b93a3",
-        tension: 0.25,
-        pointRadius: 0,
-        borderWidth: 2,
-      });
-
-      rows.push(`
-        <tr>
-          <td class="ticker-cell">${asset.label}</td>
-          <td class="${changeClass(pctChange)}">${arrow(pctChange)} ${fmtPercent(pctChange)}</td>
-          <td>${fmtBRL.format(resultAmount)}</td>
-        </tr>`);
-    });
-
-    tableBody.innerHTML = rows.length ? rows.join("") : `<tr><td colspan="3" class="loading-row">Dados indisponíveis.</td></tr>`;
-    renderComparatorChart(datasets);
+    listEl.innerHTML = sorted.map((r) => investRowHTML(r, amount, maxAbsPct)).join("");
   } catch (err) {
     console.error("Erro no comparador:", err);
-    tableBody.innerHTML = `<tr><td colspan="3" class="loading-row">Dados temporariamente indisponíveis.</td></tr>`;
-    renderComparatorChart([]);
+    listEl.innerHTML = `<p class="loading-row">Dados temporariamente indisponíveis.</p>`;
   } finally {
     statusEl.classList.add("hidden");
   }
 }
 
-function renderComparatorChart(datasets) {
-  const canvas = document.getElementById("comparator-chart");
-  if (!canvas || typeof Chart === "undefined") return;
-
-  if (comparatorState.chart) {
-    comparatorState.chart.destroy();
-    comparatorState.chart = null;
-  }
-  if (!datasets.length) return;
-
-  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-  const gridColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-  const textColor = isDark ? "#8b93a3" : "#676d7d";
-
-  comparatorState.chart = new Chart(canvas.getContext("2d"), {
-    type: "line",
-    data: { datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      scales: {
-        x: {
-          type: "linear",
-          grid: { color: gridColor },
-          ticks: {
-            color: textColor,
-            callback: (val) => new Date(val).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-          },
-        },
-        y: {
-          grid: { color: gridColor },
-          ticks: { color: textColor, callback: (v) => `${v}%` },
-        },
-      },
-      plugins: {
-        legend: { labels: { color: textColor } },
-        tooltip: {
-          callbacks: {
-            title: (items) => new Date(items[0].parsed.x).toLocaleDateString("pt-BR"),
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%`,
-          },
-        },
-      },
-    },
-  });
-}
-
 function setupComparator() {
-  const selectA = document.getElementById("asset-a");
-  if (!selectA) return;
-
-  populateComparatorSelects();
+  const listEl = document.getElementById("comparator-list");
+  if (!listEl) return;
 
   document.querySelectorAll(".period-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -753,8 +682,6 @@ function setupComparator() {
     });
   });
 
-  selectA.addEventListener("change", updateComparator);
-  document.getElementById("asset-b").addEventListener("change", updateComparator);
   document.getElementById("sim-amount").addEventListener("input", () => {
     clearTimeout(comparatorState.amountTimer);
     comparatorState.amountTimer = setTimeout(updateComparator, 400);

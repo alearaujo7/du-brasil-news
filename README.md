@@ -11,18 +11,14 @@ Site 100% estático (HTML + CSS + JS puro) — sem build, sem servidor, sem depe
 - Índice de Medo e Ganância do mercado cripto — via alternative.me, com gauge visual.
 - Economia Brasil: Selic (meta) e IPCA (12 meses) direto do Banco Central (API SGS, dado oficial), com cálculo simplificado de juro real (Selic − IPCA).
 - Maiores altas e quedas do dia entre as criptomoedas monitoradas.
-- Comparador & simulador de ativos: compara o desempenho normalizado (%) de até 2 ativos (cripto, câmbio ou 4 ações-teste da B3) num período de 7/30/90 dias, com gráfico (Chart.js) e simulação de quanto renderia um valor hipotético investido.
+- Comparador de investimentos: mostra quanto Poupança, CDI/Tesouro Selic, Bitcoin, Ethereum e Dólar renderam de verdade no mesmo período (30D / 90D / 1 ano), como um ranking em barras, com o valor final de um investimento hipotético. Poupança usa a regra oficial de rendimento (0,5% a.m. quando a Selic está acima de 8,5% a.a., TR considerada 0%); CDI/Tesouro Selic usa a Selic diária real do Banco Central, composta dia a dia (não é estimativa); Bitcoin, Ethereum e Dólar usam o histórico real de preços.
 - Busca de ativos, favoritos (salvos no navegador), dark mode, modal de detalhes e layout responsivo.
 
 Todas as chamadas de API rodam direto no navegador de quem acessa o site (sem backend). Isso é ótimo para um MVP, mas significa que, se o site crescer muito, o volume de chamadas cresce junto — os provedores usados (CoinGecko, AwesomeAPI, BCB, alternative.me) têm limites de taxa, e uma visita muito concorrida pode ocasionalmente esbarrar neles. Quando isso acontece, a tela mostra "Dados temporariamente indisponíveis" em vez de travar ou inventar números — nunca é exibido um valor fictício.
 
 ## Sobre ações da B3
 
-O painel não traz mais uma tabela ao vivo de ações da B3 nem o Ibovespa: a brapi.dev (fonte usada) hoje só libera esses dados via plano pago (a partir de R$ 99,99/mês). Em vez de mostrar uma cobertura parcial e enganosa, o site focou no que consegue entregar por completo: câmbio, cripto e indicadores macro.
-
-O comparador ainda permite comparar o histórico de 4 ações-teste (PETR4, VALE3, ITUB4, MGLU3), que a brapi.dev libera sem custo. Se um dia quiser assinar um plano pago para desbloquear mais ações e o Ibovespa, basta colar o token em `js/config.js`, no campo `BRAPI_TOKEN` — a função `fetchStockHistory` em `js/api.js` já usa esse token automaticamente quando presente.
-
-**Atenção:** como o site não tem backend, um token colado ali ficaria visível no navegador de quem acessa o site. Aceitável para MVP/uso pessoal, mas não use um token de uma conta sensível. Se o projeto crescer, o próximo passo é mover essa chamada para uma função serverless (ex: Vercel Functions).
+O painel não traz uma tabela ao vivo de ações da B3 nem o Ibovespa: a fonte que seria usada (brapi.dev) hoje só libera esses dados via plano pago. Em vez de mostrar uma cobertura parcial, o site focou no que consegue entregar por completo e com dados 100% confiáveis: câmbio, cripto, indicadores macro e o comparador de investimentos.
 
 ## Rodar localmente
 
@@ -65,12 +61,11 @@ js/api.js             camada de integração com as APIs externas
 js/app.js              lógica da página (render, busca, favoritos, comparador, etc.)
 ```
 
-O gráfico do comparador usa a biblioteca Chart.js, carregada por CDN (linha `<script src="https://cdnjs.cloudflare.com/...">` no `index.html`) — não precisa instalar nada.
+Todos os gráficos (sparklines, gauge, barras do comparador) são feitos com SVG/CSS puro — sem biblioteca externa, sem CDN, sem risco de travar por causa de uma dependência de terceiros.
 
 ## Próximos passos sugeridos
 
 - Adicionar seção de notícias (exige um pequeno backend por causa de CORS/agregação de RSS — ex: uma Vercel Function, já que o site está hospedado lá).
 - Gerar o resumo "Mercado hoje" com IA a partir dos dados já coletados (hoje é gerado por regras simples, sem inventar informação).
-- Adicionar gráfico de preço no modal de detalhes usando o histórico da brapi.dev.
-- Mover chamadas de API sensíveis (com token) para funções serverless, escondendo a chave do navegador.
-- Ampliar o comparador para todas as ações da B3 quando/se um plano pago da brapi.dev for assinado.
+- Adicionar gráfico de preço no modal de detalhes usando o histórico já buscado das criptomoedas.
+- Se algum dia fizer sentido trazer ações da B3 de volta, avaliar um provedor com plano gratuito de verdade antes de reintroduzir a seção.

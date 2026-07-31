@@ -7,11 +7,6 @@
 // ============================================================
 
 const CONFIG = {
-  // Token da brapi.dev (https://brapi.dev/dashboard) — opcional.
-  // Usado apenas pelo histórico de ações do comparador (PETR4, VALE3,
-  // ITUB4, MGLU3 funcionam sem token). Deixe em branco se não tiver.
-  BRAPI_TOKEN: "",
-
   CRYPTOS: [
     { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
     { id: "ethereum", symbol: "ETH", name: "Ethereum" },
@@ -32,25 +27,8 @@ const CONFIG = {
 
   // Séries do SGS (Banco Central do Brasil) — API oficial, gratuita, sem chave.
   BCB_SERIES: {
-    SELIC: 432,     // Meta Selic definida pelo Copom (% a.a.)
-    IPCA_12M: 13522, // IPCA acumulado em 12 meses (%)
+    SELIC: 432,        // Meta Selic definida pelo Copom (% a.a.)
+    IPCA_12M: 13522,   // IPCA acumulado em 12 meses (%)
+    SELIC_DIARIA: 11,  // Taxa Selic efetiva diária (% a.d.) — usada no comparador de investimentos
   },
-
-  // Ativos disponíveis no comparador/simulador.
-  // "stock" só funciona para os 4 tickers liberados sem token (ver FREE_STOCKS).
-  COMPARATOR_ASSETS: [
-    { type: "crypto", key: "bitcoin", label: "Bitcoin (BTC)" },
-    { type: "crypto", key: "ethereum", label: "Ethereum (ETH)" },
-    { type: "crypto", key: "solana", label: "Solana (SOL)" },
-    { type: "crypto", key: "binancecoin", label: "BNB" },
-    { type: "crypto", key: "ripple", label: "XRP" },
-    { type: "crypto", key: "cardano", label: "Cardano (ADA)" },
-    { type: "crypto", key: "dogecoin", label: "Dogecoin (DOGE)" },
-    { type: "fx", key: "USD-BRL", label: "Dólar (USD/BRL)" },
-    { type: "fx", key: "EUR-BRL", label: "Euro (EUR/BRL)" },
-    { type: "stock", key: "PETR4", label: "PETR4 (Petrobras)" },
-    { type: "stock", key: "VALE3", label: "VALE3 (Vale)" },
-    { type: "stock", key: "ITUB4", label: "ITUB4 (Itaú)" },
-    { type: "stock", key: "MGLU3", label: "MGLU3 (Magazine Luiza)" },
-  ],
 };

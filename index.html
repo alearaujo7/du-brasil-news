@@ -120,19 +120,11 @@
 
   <section class="board" id="comparador">
     <div class="section-head">
-      <h2>Comparador &amp; simulador de ativos</h2>
-      <p class="hint">Compare o desempenho real de dois ativos no mesmo período, ou veja quanto renderia um valor hipotético investido. Cálculo educativo, feito só com dados reais — não é recomendação de investimento.</p>
+      <h2>Comparador de investimentos</h2>
+      <p class="hint">Veja quanto cada tipo de investimento realmente rendeu no período escolhido — renda fixa (Poupança, CDI/Tesouro Selic) calculada com dados oficiais do Banco Central, e ativos de renda variável (Bitcoin, Ethereum, Dólar) com base no histórico real de preços. Cálculo educativo — não é recomendação de investimento.</p>
     </div>
 
     <div class="comparator-controls">
-      <div class="control-group">
-        <label for="asset-a">Ativo A</label>
-        <select id="asset-a"></select>
-      </div>
-      <div class="control-group">
-        <label for="asset-b">Ativo B (opcional)</label>
-        <select id="asset-b"></select>
-      </div>
       <div class="control-group">
         <label for="sim-amount">Valor simulado</label>
         <input type="number" id="sim-amount" value="1000" min="10" step="10">
@@ -140,33 +132,18 @@
       <div class="control-group period-group">
         <label>Período</label>
         <div class="period-toggle">
-          <button class="period-btn active" data-days="7">7D</button>
           <button class="period-btn" data-days="30">30D</button>
-          <button class="period-btn" data-days="90">90D</button>
+          <button class="period-btn active" data-days="90">90D</button>
+          <button class="period-btn" data-days="365">1 ano</button>
         </div>
       </div>
     </div>
 
-    <p class="chart-explainer">Como ler o gráfico: cada linha mostra a variação acumulada (%) do ativo desde o início do período escolhido — não é o preço em si. Se a linha do Bitcoin está em "+8%", significa que o Bitcoin valorizou 8% desde o primeiro dia do período. Isso permite comparar ativos com preços muito diferentes (ex: Bitcoin x Dólar) na mesma escala.</p>
+    <p class="chart-explainer">Como ler: cada barra mostra o retorno acumulado (%) daquele investimento no período escolhido, do maior para o menor. O valor ao lado é quanto o valor simulado teria hoje se tivesse sido investido no início do período.</p>
 
-    <div class="comparator-chart-wrap">
-      <canvas id="comparator-chart" height="110"></canvas>
-      <p id="comparator-status" class="loading-row hidden">Carregando histórico…</p>
-    </div>
-
-    <div class="table-wrap comparator-table-wrap">
-      <table id="comparator-table">
-        <thead>
-          <tr>
-            <th>Ativo</th>
-            <th>Variação no período</th>
-            <th>Resultado simulado</th>
-          </tr>
-        </thead>
-        <tbody id="comparator-body">
-          <tr><td colspan="3" class="loading-row">Escolha os ativos para simular.</td></tr>
-        </tbody>
-      </table>
+    <div class="comparator-list-wrap">
+      <div id="comparator-list"></div>
+      <p id="comparator-status" class="loading-row hidden">Calculando…</p>
     </div>
   </section>
 
@@ -190,7 +167,6 @@
   <p class="disclaimer">As informações apresentadas nesta plataforma possuem caráter exclusivamente informativo e não representam recomendação de compra ou venda de ativos ou qualquer tipo de aconselhamento financeiro.</p>
 </footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/app.js"></script>
