@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DU BRASIL NEWS — Painel do Mercado Financeiro</title>
+<meta name="description" content="Entenda o mercado financeiro brasileiro em poucos minutos: Ibovespa, dólar, Bitcoin, ações da B3 e criptomoedas em um único painel.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="#top" class="logo">DU BRASIL <span>NEWS</span></a>
+
+    <nav class="main-nav" aria-label="Navegação principal">
+      <a href="#mercado">Mercado</a>
+      <a href="#acoes">Ações</a>
+      <a href="#cripto">Cripto</a>
+      <a href="#favoritos">Favoritos</a>
+    </nav>
+
+    <div class="header-actions">
+      <div class="search-wrap">
+        <input id="search-input" type="text" placeholder="Buscar ativo (ex: PETR4, Bitcoin)" autocomplete="off">
+        <div id="search-suggestions" class="suggestions hidden"></div>
+      </div>
+      <button id="theme-toggle" class="icon-btn" aria-label="Alternar tema claro/escuro" title="Alternar tema">🌙</button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="summary-bar" id="mercado">
+    <div class="status-row">
+      <span id="market-status" class="pill">Verificando mercado…</span>
+      <span class="last-update">Última atualização: <strong id="last-update-time">--:--</strong></span>
+    </div>
+    <div class="cards-row" id="summary-cards">
+      <!-- cards injetados via JS -->
+    </div>
+  </section>
+
+  <section class="today-brief">
+    <h2>Mercado hoje</h2>
+    <p id="today-summary">Carregando resumo do mercado…</p>
+  </section>
+
+  <section class="board" id="acoes">
+    <div class="section-head">
+      <h2>Mercado Brasileiro</h2>
+      <p class="hint">Exibindo as ações liberadas gratuitamente pela API, sem necessidade de cadastro. <a href="#" id="token-hint-link">Quer ver mais ações da B3?</a></p>
+    </div>
+    <div class="table-wrap">
+      <table id="stocks-table">
+        <thead>
+          <tr>
+            <th aria-label="Favorito"></th>
+            <th>Ticker</th>
+            <th>Empresa</th>
+            <th>Preço</th>
+            <th>Variação (dia)</th>
+          </tr>
+        </thead>
+        <tbody id="stocks-body">
+          <tr><td colspan="5" class="loading-row">Carregando cotações…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="rankings">
+    <div class="ranking-col">
+      <h3>Maiores altas do dia</h3>
+      <ul id="top-gainers" class="ranking-list"><li class="loading-row">Carregando…</li></ul>
+    </div>
+    <div class="ranking-col">
+      <h3>Maiores quedas do dia</h3>
+      <ul id="top-losers" class="ranking-list"><li class="loading-row">Carregando…</li></ul>
+    </div>
+  </section>
+  <p class="hint ranking-hint">Ranking calculado com base nas ações monitoradas neste painel.</p>
+
+  <section class="board" id="cripto">
+    <div class="section-head">
+      <h2>Criptomoedas</h2>
+    </div>
+    <div class="crypto-grid" id="crypto-grid">
+      <div class="loading-row">Carregando criptomoedas…</div>
+    </div>
+  </section>
+
+  <section class="board" id="favoritos">
+    <div class="section-head"><h2>Meus favoritos</h2></div>
+    <p id="favorites-empty" class="empty-state">Clique na estrela ☆ de qualquer ativo para adicioná-lo aqui. Os favoritos ficam salvos apenas neste navegador.</p>
+    <div class="favorites-grid" id="favorites-grid"></div>
+  </section>
+
+</main>
+
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button id="modal-close" class="modal-close" aria-label="Fechar">×</button>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p class="footer-brand">DU BRASIL NEWS — painel diário do mercado financeiro.</p>
+  <p class="disclaimer">As informações apresentadas nesta plataforma possuem caráter exclusivamente informativo e não representam recomendação de compra ou venda de ativos ou qualquer tipo de aconselhamento financeiro.</p>
+</footer>
+
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
