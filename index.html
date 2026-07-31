@@ -17,6 +17,7 @@
       <a href="#mercado">Mercado</a>
       <a href="#acoes">Ações</a>
       <a href="#cripto">Cripto</a>
+      <a href="#comparador">Comparador</a>
       <a href="#favoritos">Favoritos</a>
     </nav>
 
@@ -45,6 +46,45 @@
   <section class="today-brief">
     <h2>Mercado hoje</h2>
     <p id="today-summary">Carregando resumo do mercado…</p>
+  </section>
+
+  <section class="insights-row">
+    <div class="insight-card" id="fng-card">
+      <h3>Sentimento do mercado (cripto)</h3>
+      <div class="gauge-wrap">
+        <svg id="fng-gauge" viewBox="0 0 200 120" class="gauge-svg">
+          <path d="M 20 110 A 80 80 0 0 1 60 34" class="gauge-seg seg-1"></path>
+          <path d="M 60 34 A 80 80 0 0 1 100 20" class="gauge-seg seg-2"></path>
+          <path d="M 100 20 A 80 80 0 0 1 140 34" class="gauge-seg seg-3"></path>
+          <path d="M 140 34 A 80 80 0 0 1 180 110" class="gauge-seg seg-4"></path>
+          <line id="fng-needle" x1="100" y1="110" x2="100" y2="40" class="gauge-needle"></line>
+          <circle cx="100" cy="110" r="5" class="gauge-pivot"></circle>
+        </svg>
+        <div class="gauge-value">
+          <span id="fng-value">--</span>
+          <span id="fng-label" class="gauge-label">Carregando…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="insight-card" id="econ-card">
+      <h3>Economia Brasil</h3>
+      <div class="econ-grid">
+        <div class="econ-item">
+          <div class="sc-label">Selic (meta)</div>
+          <div class="sc-price" id="econ-selic">—</div>
+        </div>
+        <div class="econ-item">
+          <div class="sc-label">IPCA (12 meses)</div>
+          <div class="sc-price" id="econ-ipca">—</div>
+        </div>
+        <div class="econ-item">
+          <div class="sc-label">Juro real aproximado</div>
+          <div class="sc-price" id="econ-real">—</div>
+        </div>
+      </div>
+      <p class="hint">Fonte: Banco Central do Brasil (SGS), dados oficiais e gratuitos. Juro real = Selic − IPCA (cálculo simplificado).</p>
+    </div>
   </section>
 
   <section class="board" id="acoes">
@@ -91,6 +131,56 @@
     </div>
   </section>
 
+  <section class="board" id="comparador">
+    <div class="section-head">
+      <h2>Comparador &amp; simulador de ativos</h2>
+      <p class="hint">Compare o desempenho real de dois ativos no mesmo período, ou veja quanto renderia um valor hipotético investido. Cálculo educativo, feito só com dados reais — não é recomendação de investimento.</p>
+    </div>
+
+    <div class="comparator-controls">
+      <div class="control-group">
+        <label for="asset-a">Ativo A</label>
+        <select id="asset-a"></select>
+      </div>
+      <div class="control-group">
+        <label for="asset-b">Ativo B (opcional)</label>
+        <select id="asset-b"></select>
+      </div>
+      <div class="control-group">
+        <label for="sim-amount">Valor simulado</label>
+        <input type="number" id="sim-amount" value="1000" min="10" step="10">
+      </div>
+      <div class="control-group period-group">
+        <label>Período</label>
+        <div class="period-toggle">
+          <button class="period-btn active" data-days="7">7D</button>
+          <button class="period-btn" data-days="30">30D</button>
+          <button class="period-btn" data-days="90">90D</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="comparator-chart-wrap">
+      <canvas id="comparator-chart" height="110"></canvas>
+      <p id="comparator-status" class="loading-row hidden">Carregando histórico…</p>
+    </div>
+
+    <div class="table-wrap comparator-table-wrap">
+      <table id="comparator-table">
+        <thead>
+          <tr>
+            <th>Ativo</th>
+            <th>Variação no período</th>
+            <th>Resultado simulado</th>
+          </tr>
+        </thead>
+        <tbody id="comparator-body">
+          <tr><td colspan="3" class="loading-row">Escolha os ativos para simular.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="board" id="favoritos">
     <div class="section-head"><h2>Meus favoritos</h2></div>
     <p id="favorites-empty" class="empty-state">Clique na estrela ☆ de qualquer ativo para adicioná-lo aqui. Os favoritos ficam salvos apenas neste navegador.</p>
@@ -111,6 +201,7 @@
   <p class="disclaimer">As informações apresentadas nesta plataforma possuem caráter exclusivamente informativo e não representam recomendação de compra ou venda de ativos ou qualquer tipo de aconselhamento financeiro.</p>
 </footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/api.js"></script>
 <script src="js/app.js"></script>

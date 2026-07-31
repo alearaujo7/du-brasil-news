@@ -7,11 +7,13 @@
 // ============================================================
 
 const CONFIG = {
-  // Token gratuito da brapi.dev (https://brapi.dev/dashboard).
+  // Token da brapi.dev (https://brapi.dev/dashboard).
   // Sem token, o painel mostra as 4 ações liberadas para teste
   // (PETR4, VALE3, ITUB4, MGLU3) e o Ibovespa fica indisponível.
-  // Com um token gratuito, você libera o Ibovespa e as demais
-  // ações da lista abaixo.
+  // Atenção: hoje a brapi.dev só libera o Ibovespa e as demais
+  // ações via plano pago (a partir de R$ 99,99/mês) — não existe
+  // mais um token gratuito para isso. Só preencha aqui se decidir
+  // assinar um dos planos.
   BRAPI_TOKEN: "",
 
   // Ações que a brapi.dev libera SEM token (uso de teste).
@@ -46,4 +48,28 @@ const CONFIG = {
 
   REFRESH_INTERVAL_MS: 60000, // atualiza os dados a cada 60s
   CACHE_TTL_MS: 45000,        // evita repetir a mesma chamada em menos de 45s
+
+  // Séries do SGS (Banco Central do Brasil) — API oficial, gratuita, sem chave.
+  BCB_SERIES: {
+    SELIC: 432,     // Meta Selic definida pelo Copom (% a.a.)
+    IPCA_12M: 13522, // IPCA acumulado em 12 meses (%)
+  },
+
+  // Ativos disponíveis no comparador/simulador.
+  // "stock" só funciona para os 4 tickers liberados sem token (ver FREE_STOCKS).
+  COMPARATOR_ASSETS: [
+    { type: "crypto", key: "bitcoin", label: "Bitcoin (BTC)" },
+    { type: "crypto", key: "ethereum", label: "Ethereum (ETH)" },
+    { type: "crypto", key: "solana", label: "Solana (SOL)" },
+    { type: "crypto", key: "binancecoin", label: "BNB" },
+    { type: "crypto", key: "ripple", label: "XRP" },
+    { type: "crypto", key: "cardano", label: "Cardano (ADA)" },
+    { type: "crypto", key: "dogecoin", label: "Dogecoin (DOGE)" },
+    { type: "fx", key: "USD-BRL", label: "Dólar (USD/BRL)" },
+    { type: "fx", key: "EUR-BRL", label: "Euro (EUR/BRL)" },
+    { type: "stock", key: "PETR4", label: "PETR4 (Petrobras)" },
+    { type: "stock", key: "VALE3", label: "VALE3 (Vale)" },
+    { type: "stock", key: "ITUB4", label: "ITUB4 (Itaú)" },
+    { type: "stock", key: "MGLU3", label: "MGLU3 (Magazine Luiza)" },
+  ],
 };

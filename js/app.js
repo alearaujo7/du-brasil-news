@@ -6,8 +6,17 @@ const state = {
   stocks: [],       // [{ticker, name, price, changePercent, ...raw}]
   ibovespa: null,   // {price, changePercent} ou null
   fx: null,         // {usd:{...}, eur:{...}}
-  cryptos: [],      // [{id, symbol, name, priceUsd, priceBrl, change24h, marketCap}]
+  cryptos: [],      // [{id, symbol, name, image, rank, priceUsd, priceBrl, change24h, marketCap, sparkline}]
   favorites: [],    // [{type:'stock'|'crypto', key:'PETR4'}]
+  fearGreed: null,  // {value, value_classification} ou null
+  selic: null,      // número (%) ou null
+  ipca: null,       // número (%) ou null
+};
+
+const comparatorState = {
+  days: 7,
+  chart: null,
+  amountTimer: null,
 };
 
 const fmtBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -75,6 +84,7 @@ function toggleTheme() {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem(THEME_KEY, next);
   document.getElementById("theme-toggle").textContent = next === "dark" ? "🌙" : "☀️";
+  if (comparatorState.chart) updateComparator();
 }
 
 // ---------- Status do mercado (B3) ----------
@@ -110,11 +120,14 @@ async function loadAllData() {
     [...CONFIG.FREE_STOCKS, ...CONFIG.EXTRA_STOCKS].map((s) => [s.ticker, s.name])
   );
 
-  const [stocksRes, ibovRes, fxRes, cryptoRes] = await Promise.all([
+  const [stocksRes, ibovRes, fxRes, cryptoRes, fngRes, selicRes, ipcaRes] = await Promise.all([
     API.fetchStocks(allTickers),
     API.fetchIbovespa(),
     API.fetchExchangeRates(),
-    API.fetchCryptos(),
+    API.fetchCryptoMarkets(),
+    API.fetchFearGreed(),
+    API.fetchSelic(),
+    API.fetchIpca12m(),
   ]);
 
   state.stocks = stocksRes.ok
@@ -146,21 +159,30 @@ async function loadAllData() {
   state.fx = fxRes.ok ? fxRes.data : null;
   state.fxError = !fxRes.ok;
 
+  const usdBrlRate = state.fx && state.fx.USDBRL ? parseFloat(state.fx.USDBRL.bid) : null;
+
   state.cryptos = cryptoRes.ok
-    ? CONFIG.CRYPTOS.map((c) => {
-        const d = cryptoRes.data[c.id] || {};
-        return {
-          id: c.id,
-          symbol: c.symbol,
-          name: c.name,
-          priceUsd: d.usd ?? null,
-          priceBrl: d.brl ?? null,
-          change24h: d.usd_24h_change ?? null,
-          marketCap: d.usd_market_cap ?? null,
-        };
-      })
+    ? cryptoRes.data.map((c) => ({
+        id: c.id,
+        symbol: (c.symbol || "").toUpperCase(),
+        name: c.name,
+        image: c.image || null,
+        rank: c.market_cap_rank ?? null,
+        priceUsd: c.current_price ?? null,
+        priceBrl: c.current_price !== null && c.current_price !== undefined && usdBrlRate
+          ? c.current_price * usdBrlRate
+          : null,
+        change24h: c.price_change_percentage_24h ?? null,
+        marketCap: c.market_cap ?? null,
+        sparkline: (c.sparkline_in_7d && c.sparkline_in_7d.price) || [],
+      }))
     : [];
   state.cryptoError = !cryptoRes.ok;
+
+  state.fearGreed = fngRes.ok ? fngRes.data : null;
+
+  state.selic = selicRes.ok ? parseFloat(selicRes.data[selicRes.data.length - 1].valor) : null;
+  state.ipca = ipcaRes.ok ? parseFloat(ipcaRes.data[ipcaRes.data.length - 1].valor) : null;
 }
 
 // ---------- Render: cards de resumo ----------
@@ -339,6 +361,20 @@ function rankingItemHTML(s) {
     </li>`;
 }
 
+// ---------- Sparklines (mini gráfico em SVG, sem dependências) ----------
+function sparklineSVG(prices, width = 110, height = 34) {
+  if (!prices || prices.length < 2) return "";
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+  const step = width / (prices.length - 1);
+  const points = prices
+    .map((p, i) => `${(i * step).toFixed(1)},${(height - ((p - min) / range) * height).toFixed(1)}`)
+    .join(" ");
+  const trendUp = prices[prices.length - 1] >= prices[0];
+  return `<svg class="sparkline ${trendUp ? "up" : "down"}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><polyline points="${points}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
 // ---------- Render: cripto ----------
 function renderCryptoGrid() {
   const el = document.getElementById("crypto-grid");
@@ -358,19 +394,73 @@ function renderCryptoGrid() {
       return `
         <div class="crypto-card clickable-row" data-crypto="${c.id}">
           <div class="cc-head">
-            <div>
-              <div class="cc-name">${c.name}</div>
-              <div class="cc-symbol">${c.symbol}</div>
+            <div class="cc-title">
+              ${c.image ? `<img class="cc-logo" src="${c.image}" alt="" loading="lazy">` : ""}
+              <div>
+                <div class="cc-name">${c.name}${c.rank ? `<span class="cc-rank">#${c.rank}</span>` : ""}</div>
+                <div class="cc-symbol">${c.symbol}</div>
+              </div>
             </div>
             <button class="star-btn ${fav ? "active" : ""}" data-fav-type="crypto" data-fav-key="${c.id}" data-fav-label="${c.symbol}" title="Favoritar">${fav ? "★" : "☆"}</button>
           </div>
           <div class="cc-price">${c.priceUsd !== null ? fmtUSD.format(c.priceUsd) : "—"}</div>
           <div class="cc-price-brl">${c.priceBrl !== null ? fmtBRL.format(c.priceBrl) : "—"}</div>
+          <div class="cc-sparkline">${sparklineSVG(c.sparkline)}</div>
           <div class="cc-change ${changeClass(c.change24h)}">${arrow(c.change24h)} ${fmtPercent(c.change24h)} (24h)</div>
           ${c.marketCap ? `<div class="cc-cap">Market cap: ${fmtUSD.format(c.marketCap)}</div>` : ""}
         </div>`;
     })
     .join("");
+}
+
+// ---------- Render: Índice de Medo e Ganância ----------
+const FNG_LABELS = {
+  "Extreme Fear": "Medo extremo",
+  Fear: "Medo",
+  Neutral: "Neutro",
+  Greed: "Ganância",
+  "Extreme Greed": "Ganância extrema",
+};
+
+function renderFearGreed() {
+  const valueEl = document.getElementById("fng-value");
+  const labelEl = document.getElementById("fng-label");
+  const needle = document.getElementById("fng-needle");
+  if (!valueEl) return;
+
+  if (!state.fearGreed) {
+    valueEl.textContent = "—";
+    labelEl.textContent = "Dados indisponíveis";
+    needle.setAttribute("transform", "rotate(0 100 110)");
+    return;
+  }
+
+  const value = parseInt(state.fearGreed.value, 10);
+  valueEl.textContent = Number.isNaN(value) ? "—" : value;
+  labelEl.textContent = FNG_LABELS[state.fearGreed.value_classification] || state.fearGreed.value_classification;
+
+  const angle = -90 + (Math.max(0, Math.min(100, value)) / 100) * 180;
+  needle.setAttribute("transform", `rotate(${angle} 100 110)`);
+}
+
+// ---------- Render: Economia Brasil ----------
+function renderEconomia() {
+  const selicEl = document.getElementById("econ-selic");
+  const ipcaEl = document.getElementById("econ-ipca");
+  const realEl = document.getElementById("econ-real");
+  if (!selicEl) return;
+
+  selicEl.textContent = state.selic !== null ? `${state.selic.toFixed(2).replace(".", ",")}%` : "Indisponível";
+  ipcaEl.textContent = state.ipca !== null ? `${state.ipca.toFixed(2).replace(".", ",")}%` : "Indisponível";
+
+  if (state.selic !== null && state.ipca !== null) {
+    const real = state.selic - state.ipca;
+    realEl.textContent = `${real > 0 ? "+" : ""}${real.toFixed(2).replace(".", ",")}%`;
+    realEl.className = `sc-price ${changeClass(real)}`;
+  } else {
+    realEl.textContent = "Indisponível";
+    realEl.className = "sc-price";
+  }
 }
 
 // ---------- Render: favoritos ----------
@@ -516,7 +606,7 @@ function setupEventListeners() {
     e.preventDefault();
     document.getElementById("modal-content").innerHTML = `
       <h3>Ver mais ações da B3</h3>
-      <p class="modal-sub">A brapi.dev libera 4 ações gratuitamente sem cadastro (PETR4, VALE3, ITUB4, MGLU3). Para ver o Ibovespa e as demais ações da lista, crie uma conta gratuita em <strong>brapi.dev/dashboard</strong>, copie seu token e cole em <code>js/config.js</code>, no campo <code>BRAPI_TOKEN</code>.</p>`;
+      <p class="modal-sub">A brapi.dev libera 4 ações sem cadastro e sem custo (PETR4, VALE3, ITUB4, MGLU3) — é o que este painel usa hoje. Para ver o Ibovespa e as demais ações da lista, a brapi.dev exige atualmente um plano pago (a partir de R$ 99,99/mês, com garantia de reembolso em 7 dias). Se um dia decidir assinar, é só colar o token gerado no dashboard em <code>js/config.js</code>, no campo <code>BRAPI_TOKEN</code>.</p>`;
     document.getElementById("modal-overlay").classList.remove("hidden");
   });
 
@@ -540,6 +630,182 @@ function setupEventListeners() {
   });
 }
 
+// ---------- Comparador & simulador de ativos ----------
+function assetValue(type, key) {
+  return `${type}:${key}`;
+}
+
+function findComparatorAsset(value) {
+  const [type, key] = value.split(":");
+  return CONFIG.COMPARATOR_ASSETS.find((a) => a.type === type && a.key === key) || { type, key, label: value };
+}
+
+function populateComparatorSelects() {
+  const selectA = document.getElementById("asset-a");
+  const selectB = document.getElementById("asset-b");
+  if (!selectA || !selectB) return;
+
+  const options = CONFIG.COMPARATOR_ASSETS.map(
+    (a) => `<option value="${assetValue(a.type, a.key)}">${a.label}</option>`
+  ).join("");
+
+  selectA.innerHTML = options;
+  selectB.innerHTML = `<option value="">Nenhum</option>${options}`;
+  selectA.value = assetValue("crypto", "bitcoin");
+  selectB.value = assetValue("fx", "USD-BRL");
+}
+
+function downsample(points, maxPoints = 300) {
+  if (points.length <= maxPoints) return points;
+  const step = Math.ceil(points.length / maxPoints);
+  return points.filter((_, i) => i % step === 0);
+}
+
+async function fetchAssetHistory(type, key, days) {
+  if (type === "crypto") return API.fetchCryptoHistory(key, days);
+  if (type === "fx") return API.fetchFxHistory(key, days);
+  if (type === "stock") {
+    const rangeMap = { 7: "5d", 30: "1mo", 90: "3mo" };
+    return API.fetchStockHistory(key, rangeMap[days] || "1mo");
+  }
+  return { ok: false };
+}
+
+function normalizeSeries(points) {
+  if (!points.length) return [];
+  const base = points[0].value;
+  return points.map((p) => ({ date: p.date, pct: base ? ((p.value - base) / base) * 100 : 0 }));
+}
+
+async function updateComparator() {
+  const selectA = document.getElementById("asset-a");
+  const selectB = document.getElementById("asset-b");
+  const statusEl = document.getElementById("comparator-status");
+  const tableBody = document.getElementById("comparator-body");
+  if (!selectA) return;
+
+  const amount = parseFloat(document.getElementById("sim-amount").value) || 0;
+  const selections = [selectA.value, selectB.value].filter(Boolean);
+  if (!selections.length) return;
+
+  statusEl.classList.remove("hidden");
+  statusEl.textContent = "Carregando histórico…";
+  tableBody.innerHTML = `<tr><td colspan="3" class="loading-row">Carregando…</td></tr>`;
+
+  const assets = selections.map(findComparatorAsset);
+  const results = await Promise.all(assets.map((a) => fetchAssetHistory(a.type, a.key, comparatorState.days)));
+
+  const colors = ["#6d8bff", "#f5b731"];
+  const datasets = [];
+  const rows = [];
+
+  results.forEach((res, i) => {
+    const asset = assets[i];
+    if (!res.ok || !res.data.length) {
+      rows.push(`<tr><td class="ticker-cell">${asset.label}</td><td colspan="2" class="neutral">Dados indisponíveis</td></tr>`);
+      return;
+    }
+    const points = downsample(res.data);
+    const normalized = normalizeSeries(points);
+    const pctChange = normalized[normalized.length - 1].pct;
+    const resultAmount = amount * (1 + pctChange / 100);
+
+    datasets.push({
+      label: asset.label,
+      data: normalized.map((p) => ({ x: p.date.getTime(), y: p.pct })),
+      borderColor: colors[i] || "#8b93a3",
+      backgroundColor: colors[i] || "#8b93a3",
+      tension: 0.25,
+      pointRadius: 0,
+      borderWidth: 2,
+    });
+
+    rows.push(`
+      <tr>
+        <td class="ticker-cell">${asset.label}</td>
+        <td class="${changeClass(pctChange)}">${arrow(pctChange)} ${fmtPercent(pctChange)}</td>
+        <td>${fmtBRL.format(resultAmount)}</td>
+      </tr>`);
+  });
+
+  tableBody.innerHTML = rows.length ? rows.join("") : `<tr><td colspan="3" class="loading-row">Dados indisponíveis.</td></tr>`;
+  statusEl.classList.add("hidden");
+  renderComparatorChart(datasets);
+}
+
+function renderComparatorChart(datasets) {
+  const canvas = document.getElementById("comparator-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+
+  if (comparatorState.chart) {
+    comparatorState.chart.destroy();
+    comparatorState.chart = null;
+  }
+  if (!datasets.length) return;
+
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const gridColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const textColor = isDark ? "#8b93a3" : "#676d7d";
+
+  comparatorState.chart = new Chart(canvas.getContext("2d"), {
+    type: "line",
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: {
+          type: "linear",
+          grid: { color: gridColor },
+          ticks: {
+            color: textColor,
+            callback: (val) => new Date(val).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+          },
+        },
+        y: {
+          grid: { color: gridColor },
+          ticks: { color: textColor, callback: (v) => `${v}%` },
+        },
+      },
+      plugins: {
+        legend: { labels: { color: textColor } },
+        tooltip: {
+          callbacks: {
+            title: (items) => new Date(items[0].parsed.x).toLocaleDateString("pt-BR"),
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%`,
+          },
+        },
+      },
+    },
+  });
+}
+
+function setupComparator() {
+  const selectA = document.getElementById("asset-a");
+  if (!selectA) return;
+
+  populateComparatorSelects();
+
+  document.querySelectorAll(".period-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".period-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      comparatorState.days = parseInt(btn.dataset.days, 10);
+      updateComparator();
+    });
+  });
+
+  selectA.addEventListener("change", updateComparator);
+  document.getElementById("asset-b").addEventListener("change", updateComparator);
+  document.getElementById("sim-amount").addEventListener("input", () => {
+    clearTimeout(comparatorState.amountTimer);
+    comparatorState.amountTimer = setTimeout(updateComparator, 400);
+  });
+
+  updateComparator();
+}
+
 // ---------- Orquestração ----------
 function renderAll() {
   renderMarketStatus();
@@ -548,6 +814,8 @@ function renderAll() {
   renderStocksTable();
   renderRankings();
   renderCryptoGrid();
+  renderFearGreed();
+  renderEconomia();
   renderFavorites();
 }
 
@@ -562,6 +830,7 @@ async function init() {
   setupEventListeners();
   setupSearch();
   await refresh();
+  setupComparator();
   setInterval(refresh, CONFIG.REFRESH_INTERVAL_MS);
   setInterval(renderMarketStatus, 30000);
 }
