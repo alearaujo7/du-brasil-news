@@ -81,6 +81,21 @@ const API = (() => {
     }
   }
 
+  // ---------- Histórico de criptomoeda (para o gráfico do modal de detalhes) ----------
+  async function fetchCryptoHistory(id, days) {
+    const key = `crypto-hist:${id}:${days}`;
+    try {
+      const result = await cachedFetch(key, CONFIG.CACHE_TTL_MS, async () => {
+        return getJSON(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=${days}`);
+      });
+      const points = (result.prices || []).map(([t, v]) => ({ date: new Date(t), value: v }));
+      return points.length ? { ok: true, data: points } : { ok: false };
+    } catch (err) {
+      console.error("Erro ao buscar histórico de criptomoeda:", err);
+      return { ok: false, error: err };
+    }
+  }
+
   // ---------- Histórico de câmbio (para sparklines) ----------
   async function fetchFxHistory(pair, days) {
     const key = `fx-hist:${pair}:${days}`;
@@ -102,6 +117,7 @@ const API = (() => {
     fetchExchangeRates,
     fetchCryptoMarkets,
     fetchFearGreed,
+    fetchCryptoHistory,
     fetchFxHistory,
   };
 })();

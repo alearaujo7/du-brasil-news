@@ -9,6 +9,8 @@ const state = {
   cryptos: [],      // [{id, symbol, name, image, rank, priceUsd, priceBrl, change24h, marketCap, sparkline}]
   favorites: [],    // [{type:'crypto', key:'bitcoin'}]
   fearGreed: null,  // {value, value_classification} ou null
+  alerts: [],       // [{id, type, key, label, direction, threshold, triggered}]
+  portfolio: [],    // [{key, amount}]
 };
 
 const fmtBRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -61,6 +63,185 @@ function toggleFavorite(type, key, label) {
   renderAll();
 }
 
+// ---------- Alertas de preço (localStorage + Notification API) ----------
+const ALERTS_KEY = "dubrasil_alerts";
+
+function loadAlerts() {
+  try {
+    state.alerts = JSON.parse(localStorage.getItem(ALERTS_KEY)) || [];
+  } catch {
+    state.alerts = [];
+  }
+}
+
+function saveAlerts() {
+  localStorage.setItem(ALERTS_KEY, JSON.stringify(state.alerts));
+}
+
+function requestNotificationPermission() {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+function addAlert(type, key, label, direction, threshold) {
+  state.alerts.push({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    type,
+    key,
+    label,
+    direction,
+    threshold,
+    triggered: false,
+  });
+  saveAlerts();
+  renderAlerts();
+}
+
+function removeAlert(id) {
+  state.alerts = state.alerts.filter((a) => a.id !== id);
+  saveAlerts();
+  renderAlerts();
+}
+
+// Verifica se algum alerta cruzou o limite desde a última atualização.
+// Usa histerese: só dispara de novo depois que o preço voltar pro outro
+// lado do limite (evita ficar notificando a cada refresh com o preço parado ali).
+function checkAlerts() {
+  if (!state.alerts.length) return;
+  let changed = false;
+  state.alerts.forEach((a) => {
+    const c = state.cryptos.find((x) => x.id === a.key);
+    if (!c || c.priceUsd === null || c.priceUsd === undefined) return;
+    const crossed = a.direction === "above" ? c.priceUsd >= a.threshold : c.priceUsd <= a.threshold;
+    if (crossed && !a.triggered) {
+      fireAlertNotification(a, c.priceUsd);
+      a.triggered = true;
+      changed = true;
+    } else if (!crossed && a.triggered) {
+      a.triggered = false;
+      changed = true;
+    }
+  });
+  if (changed) saveAlerts();
+}
+
+function fireAlertNotification(alertItem, currentPrice) {
+  const dirLabel = alertItem.direction === "above" ? "subiu acima de" : "caiu abaixo de";
+  const body = `${alertItem.label} ${dirLabel} ${fmtUSD.format(alertItem.threshold)}. Preço atual: ${fmtUSD.format(currentPrice)}.`;
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification("DU BRASIL NEWS — Alerta de preço", { body });
+  }
+}
+
+// ---------- Portfólio (localStorage) ----------
+const PORTFOLIO_KEY = "dubrasil_portfolio";
+
+function loadPortfolio() {
+  try {
+    state.portfolio = JSON.parse(localStorage.getItem(PORTFOLIO_KEY)) || [];
+  } catch {
+    state.portfolio = [];
+  }
+}
+
+function savePortfolio() {
+  localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(state.portfolio));
+}
+
+function populatePortfolioSelect() {
+  const select = document.getElementById("portfolio-asset-select");
+  if (!select) return;
+  select.innerHTML = CONFIG.CRYPTOS.map((c) => `<option value="${c.id}">${c.name} (${c.symbol})</option>`).join("");
+}
+
+function handlePortfolioAdd() {
+  const select = document.getElementById("portfolio-asset-select");
+  const input = document.getElementById("portfolio-amount-input");
+  if (!select || !input) return;
+
+  const key = select.value;
+  const amount = parseFloat(input.value);
+  if (!key || Number.isNaN(amount) || amount <= 0) return;
+
+  const existing = state.portfolio.find((p) => p.key === key);
+  if (existing) {
+    existing.amount += amount;
+  } else {
+    state.portfolio.push({ key, amount });
+  }
+  savePortfolio();
+  input.value = "";
+  renderPortfolio();
+}
+
+function removePortfolioItem(key) {
+  state.portfolio = state.portfolio.filter((p) => p.key !== key);
+  savePortfolio();
+  renderPortfolio();
+}
+
+function renderPortfolio() {
+  const totalEl = document.getElementById("portfolio-total");
+  const listEl = document.getElementById("portfolio-list");
+  const emptyEl = document.getElementById("portfolio-empty");
+  if (!totalEl || !listEl) return;
+
+  if (!state.portfolio.length) {
+    totalEl.innerHTML = "";
+    listEl.innerHTML = "";
+    if (emptyEl) emptyEl.style.display = "block";
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = "none";
+
+  const rows = state.portfolio.map((p) => {
+    const c = state.cryptos.find((x) => x.id === p.key);
+    const valueUsd = c && c.priceUsd !== null ? p.amount * c.priceUsd : null;
+    return { ...p, crypto: c, valueUsd };
+  });
+
+  const totalUsd = rows.reduce((sum, r) => sum + (r.valueUsd || 0), 0);
+  const usdBrlRate = state.fx && state.fx.USDBRL ? parseFloat(state.fx.USDBRL.bid) : null;
+  const totalBrl = usdBrlRate ? totalUsd * usdBrlRate : null;
+
+  totalEl.innerHTML = `
+    <span class="pt-label">Valor total do portfólio</span>
+    ${fmtUSD.format(totalUsd)}
+    ${totalBrl !== null ? `<div class="sc-sub" style="margin-top:4px;">${fmtBRL.format(totalBrl)}</div>` : ""}`;
+
+  listEl.innerHTML = [...rows]
+    .sort((a, b) => (b.valueUsd || 0) - (a.valueUsd || 0))
+    .map((r) => {
+      const share = totalUsd > 0 && r.valueUsd !== null ? (r.valueUsd / totalUsd) * 100 : null;
+      const name = r.crypto ? r.crypto.name : r.key;
+      const symbol = r.crypto ? r.crypto.symbol : "";
+      return `
+        <div class="portfolio-row">
+          <div>
+            <div class="ticker-cell">${name}${symbol ? ` (${symbol})` : ""}</div>
+            <div class="p-amount">${fmtNumber(r.amount)} unidades</div>
+          </div>
+          <div>
+            <div class="p-value">${r.valueUsd !== null ? fmtUSD.format(r.valueUsd) : "—"}</div>
+            <div class="p-share">${share !== null ? `${share.toFixed(1)}% do portfólio` : ""}</div>
+          </div>
+          <button class="star-btn portfolio-remove" data-key="${r.key}" title="Remover do portfólio">✕</button>
+        </div>`;
+    })
+    .join("");
+}
+
+// ---------- PWA (service worker) ----------
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("service-worker.js").catch(() => {
+    // Se falhar (ex: rodando fora de HTTPS/localhost), o site continua
+    // funcionando normalmente, só sem o modo instalável.
+  });
+}
+
 // ---------- Tema ----------
 const THEME_KEY = "dubrasil_theme";
 
@@ -100,6 +281,32 @@ function renderMarketStatus() {
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  renderFxStatus();
+}
+
+// ---------- Status do mercado de câmbio ----------
+// Aproximação do horário de funcionamento do forex global (fecha sexta ~19h
+// e reabre domingo ~19h, horário de Brasília). É uma aproximação — perto da
+// virada, pode haver alguns minutos de diferença por causa de horário de
+// verão em outros países.
+function getForexStatus() {
+  const now = new Date();
+  const spTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const day = spTime.getDay(); // 0=domingo ... 6=sábado
+  const hour = spTime.getHours() + spTime.getMinutes() / 60;
+  if (day === 6) return false; // sábado: fechado o dia todo
+  if (day === 0) return hour >= 19; // domingo: abre por volta das 19h
+  if (day === 5) return hour < 19; // sexta: fecha por volta das 19h
+  return true; // segunda a quinta: aberto 24h
+}
+
+function renderFxStatus() {
+  const el = document.getElementById("fx-status");
+  if (!el) return;
+  const open = getForexStatus();
+  el.textContent = open ? "Câmbio aberto" : "Câmbio fechado";
+  el.className = `pill ${open ? "open" : "closed"}`;
 }
 
 // ---------- Busca dos dados ----------
@@ -283,6 +490,7 @@ function renderFxGrid() {
     return;
   }
 
+  const fxOpen = getForexStatus();
   el.innerHTML = state.fxCards
     .map((f) => `
       <div class="crypto-card">
@@ -293,6 +501,7 @@ function renderFxGrid() {
               <div class="cc-symbol">${f.symbol}</div>
             </div>
           </div>
+          <span class="fx-dot ${fxOpen ? "open" : "closed"}" title="${fxOpen ? "Mercado aberto" : "Mercado fechado"}"></span>
         </div>
         <div class="cc-price">${f.price !== null ? fmtBRL.format(f.price) : "—"}</div>
         <div class="cc-sparkline">${sparklineSVG(f.sparkline)}</div>
@@ -453,6 +662,76 @@ function renderFavorites() {
     .join("");
 }
 
+// ---------- Render: alertas ----------
+function renderAlerts() {
+  const list = document.getElementById("alerts-list");
+  const empty = document.getElementById("alerts-empty");
+  if (!list) return;
+
+  if (!state.alerts.length) {
+    list.innerHTML = "";
+    if (empty) empty.style.display = "block";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+
+  list.innerHTML = state.alerts
+    .map((a) => {
+      const c = state.cryptos.find((x) => x.id === a.key);
+      const currentPrice = c && c.priceUsd !== null ? fmtUSD.format(c.priceUsd) : "—";
+      const dirLabel = a.direction === "above" ? "subir acima de" : "cair abaixo de";
+      return `
+        <div class="alert-row">
+          <div>
+            <div class="ticker-cell">${a.label}</div>
+            <div class="sc-sub">Avisar ao ${dirLabel} ${fmtUSD.format(a.threshold)} — preço atual: ${currentPrice}</div>
+          </div>
+          <button class="star-btn alert-remove" data-alert-id="${a.id}" title="Remover alerta">✕</button>
+        </div>`;
+    })
+    .join("");
+}
+
+// Liga o botão "Criar alerta de preço" dentro do modal de detalhes. Como o
+// conteúdo do modal é recriado a cada abertura, essa função é chamada de
+// novo toda vez em openDetail().
+function setupAlertButton() {
+  const btn = document.getElementById("modal-alert-btn");
+  if (!btn) return;
+
+  btn.addEventListener("click", () => {
+    const type = btn.dataset.type;
+    const key = btn.dataset.key;
+    const label = btn.dataset.label;
+    const c = state.cryptos.find((x) => x.id === key);
+    const currentPrice = c && c.priceUsd !== null ? c.priceUsd.toFixed(2) : "";
+    const wrap = btn.closest(".modal-alert-wrap");
+    if (!wrap) return;
+
+    wrap.innerHTML = `
+      <div class="alert-form">
+        <label class="m-label">Avisar quando o preço (USD)</label>
+        <div class="alert-form-row">
+          <select id="alert-direction">
+            <option value="above">subir acima de</option>
+            <option value="below">cair abaixo de</option>
+          </select>
+          <input id="alert-threshold" type="number" step="0.01" min="0" value="${currentPrice}" placeholder="0.00">
+        </div>
+        <button id="alert-save-btn" class="alert-btn active">Salvar alerta</button>
+      </div>`;
+
+    document.getElementById("alert-save-btn").addEventListener("click", () => {
+      const direction = document.getElementById("alert-direction").value;
+      const threshold = parseFloat(document.getElementById("alert-threshold").value);
+      if (Number.isNaN(threshold) || threshold <= 0) return;
+      requestNotificationPermission();
+      addAlert(type, key, label, direction, threshold);
+      wrap.innerHTML = `<p class="hint">✓ Alerta criado! Gerencie seus alertas na seção "Meus alertas".</p>`;
+    });
+  });
+}
+
 // ---------- Busca ----------
 function buildSearchIndex() {
   return state.cryptos.map((c) => ({ type: "crypto", key: c.id, label: c.symbol, sub: c.name }));
@@ -504,13 +783,45 @@ function setupSearch() {
   });
 }
 
+// ---------- Gráfico de histórico (SVG, sem dependências) ----------
+function lineChartSVG(points, width = 360, height = 130) {
+  if (!points || points.length < 2) return "";
+  const values = points.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const padX = 4;
+  const padY = 10;
+  const innerW = width - padX * 2;
+  const innerH = height - padY * 2;
+  const step = innerW / (points.length - 1);
+  const coords = values.map((v, i) => [
+    padX + i * step,
+    padY + innerH - ((v - min) / range) * innerH,
+  ]);
+  const linePoints = coords.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const areaPoints = `${padX},${padY + innerH} ${linePoints} ${padX + innerW},${padY + innerH}`;
+  const trendUp = values[values.length - 1] >= values[0];
+  const cls = trendUp ? "up" : "down";
+  return `
+    <svg class="line-chart ${cls}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+      <polygon points="${areaPoints}" fill="currentColor" opacity="0.12"></polygon>
+      <polyline points="${linePoints}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></polyline>
+    </svg>`;
+}
+
 // ---------- Modal de detalhes ----------
+let modalRequestId = 0;
+
 function openDetail(type, key) {
   const overlay = document.getElementById("modal-overlay");
   const content = document.getElementById("modal-content");
 
   const c = state.cryptos.find((x) => x.id === key);
   if (!c) return;
+
+  const requestId = ++modalRequestId;
+
   content.innerHTML = `
     <h3>${c.name}</h3>
     <p class="modal-sub">${c.symbol}</p>
@@ -519,9 +830,31 @@ function openDetail(type, key) {
       <div class="m-item"><div class="m-label">Preço (BRL)</div><div class="m-value">${c.priceBrl !== null ? fmtBRL.format(c.priceBrl) : "—"}</div></div>
       <div class="m-item"><div class="m-label">Variação 24h</div><div class="m-value ${changeClass(c.change24h)}">${fmtPercent(c.change24h)}</div></div>
       <div class="m-item"><div class="m-label">Market cap</div><div class="m-value">${c.marketCap ? fmtUSD.format(c.marketCap) : "—"}</div></div>
+    </div>
+    <div class="modal-chart-wrap">
+      <div class="modal-chart-head">
+        <span class="m-label">Últimos 30 dias</span>
+      </div>
+      <div id="modal-chart" class="modal-chart loading-row">Carregando gráfico…</div>
+    </div>
+    <div class="modal-alert-wrap">
+      <button id="modal-alert-btn" class="alert-btn" data-type="${type}" data-key="${key}" data-label="${c.symbol}">🔔 Criar alerta de preço</button>
     </div>`;
 
   overlay.classList.remove("hidden");
+  setupAlertButton();
+
+  API.fetchCryptoHistory(key, 30).then((res) => {
+    if (requestId !== modalRequestId) return; // usuário já trocou de modal
+    const chartEl = document.getElementById("modal-chart");
+    if (!chartEl) return;
+    if (res.ok) {
+      chartEl.classList.remove("loading-row");
+      chartEl.innerHTML = lineChartSVG(res.data);
+    } else {
+      chartEl.textContent = "Gráfico temporariamente indisponível.";
+    }
+  });
 }
 
 function closeDetail() {
@@ -536,12 +869,24 @@ function setupEventListeners() {
     if (e.target.id === "modal-overlay") closeDetail();
   });
 
-  // delegação de eventos: estrelas de favorito e cliques em cards de cripto
+  // delegação de eventos: estrelas de favorito, remover alerta e cliques em cards de cripto
   document.addEventListener("click", (e) => {
+    const alertRemoveBtn = e.target.closest(".alert-remove");
+    if (alertRemoveBtn) {
+      e.stopPropagation();
+      removeAlert(alertRemoveBtn.dataset.alertId);
+      return;
+    }
     const starBtn = e.target.closest(".star-btn");
     if (starBtn) {
       e.stopPropagation();
       toggleFavorite(starBtn.dataset.favType, starBtn.dataset.favKey, starBtn.dataset.favLabel);
+      return;
+    }
+    const portfolioRemoveBtn = e.target.closest(".portfolio-remove");
+    if (portfolioRemoveBtn) {
+      e.stopPropagation();
+      removePortfolioItem(portfolioRemoveBtn.dataset.key);
       return;
     }
     const cryptoCard = e.target.closest(".crypto-card[data-crypto]");
@@ -549,6 +894,10 @@ function setupEventListeners() {
       openDetail("crypto", cryptoCard.dataset.crypto);
     }
   });
+
+  populatePortfolioSelect();
+  const portfolioAddBtn = document.getElementById("portfolio-add-btn");
+  if (portfolioAddBtn) portfolioAddBtn.addEventListener("click", handlePortfolioAdd);
 }
 
 // ---------- Orquestração ----------
@@ -561,21 +910,27 @@ function renderAll() {
   renderCryptoGrid();
   renderFearGreed();
   renderFavorites();
+  renderAlerts();
+  renderPortfolio();
 }
 
 async function refresh() {
   await loadAllData();
+  checkAlerts();
   renderAll();
 }
 
 async function init() {
   loadFavorites();
+  loadAlerts();
+  loadPortfolio();
   initTheme();
   setupEventListeners();
   setupSearch();
   await refresh();
   setInterval(refresh, CONFIG.REFRESH_INTERVAL_MS);
   setInterval(renderMarketStatus, 30000);
+  registerServiceWorker();
 }
 
 document.addEventListener("DOMContentLoaded", init);

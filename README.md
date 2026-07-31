@@ -6,11 +6,15 @@ Site 100% estático (HTML + CSS + JS puro) — sem build, sem servidor, sem depe
 
 ## Funcionalidades
 
-- Dólar (USD/BRL) e Euro (EUR/BRL) — via AwesomeAPI, com card visual e mini-gráfico de tendência dos últimos 7 dias.
+- Dólar (USD/BRL) e Euro (EUR/BRL) — via AwesomeAPI, com card visual, mini-gráfico de tendência dos últimos 7 dias e indicador de mercado aberto/fechado (verde/vermelho, considerando fins de semana).
 - Bitcoin, Ethereum, Solana, BNB, XRP, Cardano, Dogecoin — via CoinGecko, com logo, ranking por market cap e mini-gráfico de 7 dias em cada card.
 - Índice de Medo e Ganância do mercado cripto — via alternative.me, com anel de progresso visual (0 = medo extremo, 100 = ganância extrema).
 - Maiores altas e quedas do dia entre as criptomoedas monitoradas.
-- Busca de ativos, favoritos (salvos no navegador), dark mode, modal de detalhes e layout responsivo.
+- Modal de detalhes com gráfico de preço dos últimos 30 dias para cada criptomoeda.
+- Alertas de preço: defina "avisar quando o Bitcoin passar de X" e receba uma notificação do navegador quando o preço cruzar o valor — funciona enquanto o site estiver aberto em alguma aba (não é push em segundo plano, já que o site não tem backend).
+- Portfólio: informe quanto você possui de cada criptomoeda e acompanhe o valor total e a distribuição em tempo real.
+- Instalável como app (PWA): dá pra "adicionar à tela inicial" no celular ou instalar no computador, com ícone próprio e carregamento mais rápido via service worker.
+- Busca de ativos, favoritos, dark mode e layout responsivo. Favoritos, alertas e portfólio ficam salvos apenas no navegador do usuário (localStorage) — não há conta nem sincronização entre dispositivos.
 
 Todas as chamadas de API rodam direto no navegador de quem acessa o site (sem backend). Isso é ótimo para um site simples, mas significa que, se o site crescer muito, o volume de chamadas cresce junto — os provedores usados (CoinGecko, AwesomeAPI, alternative.me) têm limites de taxa, e uma visita muito concorrida pode ocasionalmente esbarrar neles. Quando isso acontece, a tela mostra "Dados temporariamente indisponíveis" em vez de travar ou inventar números — nunca é exibido um valor fictício.
 
@@ -53,10 +57,13 @@ Qualquer novo `git push` para `main` gera um novo deploy automático.
 
 ```
 index.html          página única
+manifest.json        configuração do PWA (nome, ícones, cores)
+service-worker.js    cache do app shell para instalação/carregamento rápido
+icons/                ícones do app (192px, 512px, apple-touch-icon)
 css/style.css        estilos (dark mode + responsivo)
 js/config.js          configurações (edite aqui)
 js/api.js             camada de integração com as APIs externas
-js/app.js              lógica da página (render, busca, favoritos, etc.)
+js/app.js              lógica da página (render, busca, favoritos, alertas, portfólio, etc.)
 ```
 
 Todos os gráficos (sparklines, anel de sentimento) são feitos com SVG/CSS puro — sem biblioteca externa, sem CDN, sem risco de travar por causa de uma dependência de terceiros.

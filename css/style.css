@@ -257,6 +257,7 @@ main {
 
 /* ---------- Boards ---------- */
 .section-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.section-head-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .hint { font-size: 0.8rem; color: var(--text-muted); margin: 0; }
 .hint a { color: var(--accent); text-decoration: none; }
 .hint a:hover { text-decoration: underline; }
@@ -349,6 +350,91 @@ tbody tr.clickable-row:hover { background: var(--bg-elevated); }
 .sparkline.up { color: var(--green); }
 .sparkline.down { color: var(--red); }
 
+.fx-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+  background: var(--text-muted);
+}
+.fx-dot.open { background: var(--green); box-shadow: 0 0 0 3px rgba(34,197,94,0.18); }
+.fx-dot.closed { background: var(--red); box-shadow: 0 0 0 3px rgba(239,68,68,0.14); }
+
+/* ---------- Alertas ---------- */
+.alerts-list, .portfolio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.alert-row, .portfolio-row {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.alert-form { display: flex; flex-direction: column; gap: 8px; }
+.alert-form-row { display: flex; gap: 8px; }
+.alert-form-row select,
+.alert-form-row input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 0.85rem;
+}
+.alert-form-row select { flex: 1.2; }
+.alert-form-row input { flex: 1; min-width: 0; }
+
+/* ---------- Portfólio ---------- */
+.portfolio-total {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.portfolio-total .pt-label {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.portfolio-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.portfolio-add select,
+.portfolio-add input {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.88rem;
+}
+.portfolio-add select { flex: 1.4; min-width: 150px; }
+.portfolio-add input { flex: 1; min-width: 110px; }
+.portfolio-row .p-amount { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+.portfolio-row .p-value { font-weight: 700; text-align: right; }
+.portfolio-row .p-share { font-size: 0.76rem; color: var(--text-muted); text-align: right; margin-top: 2px; }
+
 /* ---------- Favorites ---------- */
 .favorites-grid {
   display: grid;
@@ -407,6 +493,30 @@ tbody tr.clickable-row:hover { background: var(--bg-elevated); }
 .modal-grid .m-item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
 .modal-grid .m-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .modal-grid .m-value { font-size: 0.95rem; font-weight: 650; margin-top: 3px; }
+
+.modal-chart-wrap { margin-top: 16px; }
+.modal-chart-head { margin-bottom: 6px; }
+.modal-chart-head .m-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.modal-chart { height: 130px; }
+.modal-chart.loading-row { display: flex; align-items: center; justify-content: center; padding: 0; }
+.line-chart { width: 100%; height: 100%; display: block; }
+.line-chart.up { color: var(--green); }
+.line-chart.down { color: var(--red); }
+
+.modal-alert-wrap { margin-top: 16px; }
+.alert-btn {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.alert-btn:hover { border-color: var(--accent); }
+.alert-btn.active { border-color: var(--accent); color: var(--accent); }
 
 /* ---------- Footer ---------- */
 .site-footer {

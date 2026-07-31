@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DU BRASIL NEWS — Cripto e Câmbio em tempo real</title>
 <meta name="description" content="Acompanhe Bitcoin, Ethereum e outras criptomoedas, dólar, euro e o sentimento do mercado em um único painel, rápido e visual.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0e14">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -18,6 +22,8 @@
       <a href="#sentimento">Sentimento</a>
       <a href="#cambio">Câmbio</a>
       <a href="#cripto">Cripto</a>
+      <a href="#portfolio">Portfólio</a>
+      <a href="#alertas">Alertas</a>
       <a href="#favoritos">Favoritos</a>
     </nav>
 
@@ -76,8 +82,11 @@
 
   <section class="board" id="cambio">
     <div class="section-head">
-      <h2>Câmbio</h2>
-      <p class="hint">Dólar e euro frente ao real, com a tendência dos últimos 7 dias.</p>
+      <div class="section-head-row">
+        <h2>Câmbio</h2>
+        <span id="fx-status" class="pill">Verificando mercado…</span>
+      </div>
+      <p class="hint">Dólar e euro frente ao real, com a tendência dos últimos 7 dias. O mercado de câmbio fecha nos fins de semana (aprox. sexta às 19h a domingo às 19h, horário de Brasília).</p>
     </div>
     <div class="crypto-grid" id="fx-grid">
       <div class="loading-row">Carregando câmbio…</div>
@@ -105,6 +114,30 @@
     </div>
   </section>
   <p class="hint ranking-hint">Ranking calculado com base nas 7 criptomoedas monitoradas neste painel, pela variação em 24h.</p>
+
+  <section class="board" id="portfolio">
+    <div class="section-head">
+      <h2>Meu portfólio</h2>
+      <p class="hint">Informe quanto você tem de cada criptomoeda e acompanhe o valor total em tempo real. Fica salvo apenas neste navegador.</p>
+    </div>
+    <div class="portfolio-total" id="portfolio-total"></div>
+    <div class="portfolio-add">
+      <select id="portfolio-asset-select"></select>
+      <input id="portfolio-amount-input" type="number" step="any" min="0" placeholder="Quantidade">
+      <button id="portfolio-add-btn" class="alert-btn active">Adicionar</button>
+    </div>
+    <p id="portfolio-empty" class="empty-state">Você ainda não adicionou nenhum ativo ao portfólio.</p>
+    <div class="portfolio-list" id="portfolio-list"></div>
+  </section>
+
+  <section class="board" id="alertas">
+    <div class="section-head">
+      <h2>Meus alertas</h2>
+      <p class="hint">Alertas disparam uma notificação do navegador quando o preço cruza o valor definido — funcionam enquanto esta página estiver aberta em alguma aba.</p>
+    </div>
+    <p id="alerts-empty" class="empty-state">Você ainda não tem alertas. Abra os detalhes de uma criptomoeda e clique em "Criar alerta de preço".</p>
+    <div class="alerts-list" id="alerts-list"></div>
+  </section>
 
   <section class="board" id="favoritos">
     <div class="section-head"><h2>Meus favoritos</h2></div>
